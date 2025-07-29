@@ -1,0 +1,9 @@
+# ElencoaccessiprogGetPathParamRequest
+
+
+## Fields
+
+| Field                                                                                 | Type                                                                                  | Required                                                                              | Description                                                                           | Example                                                                               |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `prognaz`                                                                             | *str*                                                                                 | :heavy_check_mark:                                                                    | Progressivo nazionale dell'odonimo                                                    | 919572                                                                                |
+| `accparz`                                                                             | *str*                                                                                 | :heavy_check_mark:                                                                    | valore anche parziale del civico(+eventuale esponente e/o specificit�) oppure metrico | 42                                                                                    |

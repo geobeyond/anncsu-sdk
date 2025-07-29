@@ -1,0 +1,749 @@
+lockVersion: 2.0.0
+id: 8cd5c8b9-2b1e-40c0-9970-24e55c632403
+management:
+  docChecksum: 8e7c772e1573c5cc1edaddc1dc922b29
+  docVersion: 1.0.0
+  speakeasyVersion: 1.592.1
+  generationVersion: 2.667.0
+  releaseVersion: 0.0.1
+  configChecksum: a43ed4fc2aad68238cdce710642e7179
+features:
+  python:
+    additionalDependencies: 1.0.0
+    core: 5.19.5
+    defaultEnabledRetries: 0.2.0
+    devContainers: 3.0.0
+    envVarSecurityUsage: 0.3.2
+    flatRequests: 1.0.1
+    flattening: 3.1.1
+    globalSecurityCallbacks: 1.0.0
+    globalServerURLs: 3.1.1
+    methodArguments: 1.0.2
+    responseFormat: 1.0.1
+    retries: 3.0.2
+    sdkHooks: 1.1.0
+generatedFiles:
+  - .devcontainer/README.md
+  - .devcontainer/devcontainer.json
+  - .devcontainer/setup.sh
+  - .gitattributes
+  - .vscode/settings.json
+  - USAGE.md
+  - docs/errors/elencoaccessigetpathparambadrequesterror.md
+  - docs/errors/elencoaccessigetpathparaminternalservererror.md
+  - docs/errors/elencoaccessigetpathparammethodnotallowederror.md
+  - docs/errors/elencoaccessigetpathparamnotfounderror.md
+  - docs/errors/elencoaccessigetpathparamunprocessableentityerror.md
+  - docs/errors/elencoaccessigetqueryparambadrequesterror.md
+  - docs/errors/elencoaccessigetqueryparaminternalservererror.md
+  - docs/errors/elencoaccessigetqueryparammethodnotallowederror.md
+  - docs/errors/elencoaccessigetqueryparamnotfounderror.md
+  - docs/errors/elencoaccessigetqueryparamunprocessableentityerror.md
+  - docs/errors/elencoaccessipostbadrequesterror.md
+  - docs/errors/elencoaccessipostinternalservererror.md
+  - docs/errors/elencoaccessipostmethodnotallowederror.md
+  - docs/errors/elencoaccessipostnotfounderror.md
+  - docs/errors/elencoaccessipostunprocessableentityerror.md
+  - docs/errors/elencoaccessiproggetpathparambadrequesterror.md
+  - docs/errors/elencoaccessiproggetpathparaminternalservererror.md
+  - docs/errors/elencoaccessiproggetpathparammethodnotallowederror.md
+  - docs/errors/elencoaccessiproggetpathparamnotfounderror.md
+  - docs/errors/elencoaccessiproggetpathparamunprocessableentityerror.md
+  - docs/errors/elencoaccessiproggetqueryparambadrequesterror.md
+  - docs/errors/elencoaccessiproggetqueryparaminternalservererror.md
+  - docs/errors/elencoaccessiproggetqueryparammethodnotallowederror.md
+  - docs/errors/elencoaccessiproggetqueryparamnotfounderror.md
+  - docs/errors/elencoaccessiproggetqueryparamunprocessableentityerror.md
+  - docs/errors/elencoaccessiprogpostbadrequesterror.md
+  - docs/errors/elencoaccessiprogpostinternalservererror.md
+  - docs/errors/elencoaccessiprogpostmethodnotallowederror.md
+  - docs/errors/elencoaccessiprogpostnotfounderror.md
+  - docs/errors/elencoaccessiprogpostunprocessableentityerror.md
+  - docs/errors/elencoodonimigetpathparambadrequesterror.md
+  - docs/errors/elencoodonimigetpathparaminternalservererror.md
+  - docs/errors/elencoodonimigetpathparammethodnotallowederror.md
+  - docs/errors/elencoodonimigetpathparamnotfounderror.md
+  - docs/errors/elencoodonimigetpathparamunprocessableentityerror.md
+  - docs/errors/elencoodonimigetqueryparambadrequesterror.md
+  - docs/errors/elencoodonimigetqueryparaminternalservererror.md
+  - docs/errors/elencoodonimigetqueryparammethodnotallowederror.md
+  - docs/errors/elencoodonimigetqueryparamnotfounderror.md
+  - docs/errors/elencoodonimigetqueryparamunprocessableentityerror.md
+  - docs/errors/elencoodonimipostbadrequesterror.md
+  - docs/errors/elencoodonimipostinternalservererror.md
+  - docs/errors/elencoodonimipostmethodnotallowederror.md
+  - docs/errors/elencoodonimipostnotfounderror.md
+  - docs/errors/elencoodonimipostunprocessableentityerror.md
+  - docs/errors/elencoodonimiproggetpathparambadrequesterror.md
+  - docs/errors/elencoodonimiproggetpathparaminternalservererror.md
+  - docs/errors/elencoodonimiproggetpathparammethodnotallowederror.md
+  - docs/errors/elencoodonimiproggetpathparamnotfounderror.md
+  - docs/errors/elencoodonimiproggetpathparamunprocessableentityerror.md
+  - docs/errors/elencoodonimiproggetqueryparambadrequesterror.md
+  - docs/errors/elencoodonimiproggetqueryparaminternalservererror.md
+  - docs/errors/elencoodonimiproggetqueryparammethodnotallowederror.md
+  - docs/errors/elencoodonimiproggetqueryparamnotfounderror.md
+  - docs/errors/elencoodonimiproggetqueryparamunprocessableentityerror.md
+  - docs/errors/elencoodonimiprogpostbadrequesterror.md
+  - docs/errors/elencoodonimiprogpostinternalservererror.md
+  - docs/errors/elencoodonimiprogpostmethodnotallowederror.md
+  - docs/errors/elencoodonimiprogpostnotfounderror.md
+  - docs/errors/elencoodonimiprogpostunprocessableentityerror.md
+  - docs/errors/esisteaccessogetpathparambadrequesterror.md
+  - docs/errors/esisteaccessogetpathparaminternalservererror.md
+  - docs/errors/esisteaccessogetpathparammethodnotallowederror.md
+  - docs/errors/esisteaccessogetpathparamunprocessableentityerror.md
+  - docs/errors/esisteaccessogetqueryparambadrequesterror.md
+  - docs/errors/esisteaccessogetqueryparaminternalservererror.md
+  - docs/errors/esisteaccessogetqueryparammethodnotallowederror.md
+  - docs/errors/esisteaccessogetqueryparamunprocessableentityerror.md
+  - docs/errors/esisteaccessopostbadrequesterror.md
+  - docs/errors/esisteaccessopostinternalservererror.md
+  - docs/errors/esisteaccessopostmethodnotallowederror.md
+  - docs/errors/esisteaccessopostunprocessableentityerror.md
+  - docs/errors/esisteodonimogetpathparambadrequesterror.md
+  - docs/errors/esisteodonimogetpathparaminternalservererror.md
+  - docs/errors/esisteodonimogetpathparammethodnotallowederror.md
+  - docs/errors/esisteodonimogetpathparamunprocessableentityerror.md
+  - docs/errors/esisteodonimogetqueryparambadrequesterror.md
+  - docs/errors/esisteodonimogetqueryparaminternalservererror.md
+  - docs/errors/esisteodonimogetqueryparammethodnotallowederror.md
+  - docs/errors/esisteodonimogetqueryparamunprocessableentityerror.md
+  - docs/errors/esisteodonimopostbadrequesterror.md
+  - docs/errors/esisteodonimopostinternalservererror.md
+  - docs/errors/esisteodonimopostmethodnotallowederror.md
+  - docs/errors/esisteodonimopostunprocessableentityerror.md
+  - docs/errors/prognazaccgetpathparambadrequesterror.md
+  - docs/errors/prognazaccgetpathparaminternalservererror.md
+  - docs/errors/prognazaccgetpathparammethodnotallowederror.md
+  - docs/errors/prognazaccgetpathparamnotfounderror.md
+  - docs/errors/prognazaccgetpathparamunprocessableentityerror.md
+  - docs/errors/prognazaccgetqueryparambadrequesterror.md
+  - docs/errors/prognazaccgetqueryparaminternalservererror.md
+  - docs/errors/prognazaccgetqueryparammethodnotallowederror.md
+  - docs/errors/prognazaccgetqueryparamnotfounderror.md
+  - docs/errors/prognazaccgetqueryparamunprocessableentityerror.md
+  - docs/errors/prognazaccpostbadrequesterror.md
+  - docs/errors/prognazaccpostinternalservererror.md
+  - docs/errors/prognazaccpostmethodnotallowederror.md
+  - docs/errors/prognazaccpostnotfounderror.md
+  - docs/errors/prognazaccpostunprocessableentityerror.md
+  - docs/errors/prognazareagetpathparambadrequesterror.md
+  - docs/errors/prognazareagetpathparaminternalservererror.md
+  - docs/errors/prognazareagetpathparammethodnotallowederror.md
+  - docs/errors/prognazareagetpathparamnotfounderror.md
+  - docs/errors/prognazareagetpathparamunprocessableentityerror.md
+  - docs/errors/prognazareagetqueryparambadrequesterror.md
+  - docs/errors/prognazareagetqueryparaminternalservererror.md
+  - docs/errors/prognazareagetqueryparammethodnotallowederror.md
+  - docs/errors/prognazareagetqueryparamnotfounderror.md
+  - docs/errors/prognazareagetqueryparamunprocessableentityerror.md
+  - docs/errors/prognazareapostbadrequesterror.md
+  - docs/errors/prognazareapostinternalservererror.md
+  - docs/errors/prognazareapostmethodnotallowederror.md
+  - docs/errors/prognazareapostnotfounderror.md
+  - docs/errors/prognazareapostunprocessableentityerror.md
+  - docs/errors/serviceunavailableerror.md
+  - docs/models/elencoaccessigetpathparamdata.md
+  - docs/models/elencoaccessigetpathparamrequest.md
+  - docs/models/elencoaccessigetpathparamresponse.md
+  - docs/models/elencoaccessigetqueryparamdata.md
+  - docs/models/elencoaccessigetqueryparamrequest.md
+  - docs/models/elencoaccessigetqueryparamresponse.md
+  - docs/models/elencoaccessipostdata.md
+  - docs/models/elencoaccessipostrequest.md
+  - docs/models/elencoaccessipostresponse.md
+  - docs/models/elencoaccessiproggetpathparamdata.md
+  - docs/models/elencoaccessiproggetpathparamrequest.md
+  - docs/models/elencoaccessiproggetpathparamresponse.md
+  - docs/models/elencoaccessiproggetqueryparamdata.md
+  - docs/models/elencoaccessiproggetqueryparamrequest.md
+  - docs/models/elencoaccessiproggetqueryparamresponse.md
+  - docs/models/elencoaccessiprogpostdata.md
+  - docs/models/elencoaccessiprogpostrequest.md
+  - docs/models/elencoaccessiprogpostresponse.md
+  - docs/models/elencoodonimigetpathparamdata.md
+  - docs/models/elencoodonimigetpathparamrequest.md
+  - docs/models/elencoodonimigetpathparamresponse.md
+  - docs/models/elencoodonimigetqueryparamdata.md
+  - docs/models/elencoodonimigetqueryparamrequest.md
+  - docs/models/elencoodonimigetqueryparamresponse.md
+  - docs/models/elencoodonimipostdata.md
+  - docs/models/elencoodonimipostrequest.md
+  - docs/models/elencoodonimipostresponse.md
+  - docs/models/elencoodonimiproggetpathparamdata.md
+  - docs/models/elencoodonimiproggetpathparamrequest.md
+  - docs/models/elencoodonimiproggetpathparamresponse.md
+  - docs/models/elencoodonimiproggetqueryparamdata.md
+  - docs/models/elencoodonimiproggetqueryparamrequest.md
+  - docs/models/elencoodonimiproggetqueryparamresponse.md
+  - docs/models/elencoodonimiprogpostdata.md
+  - docs/models/elencoodonimiprogpostrequest.md
+  - docs/models/elencoodonimiprogpostresponse.md
+  - docs/models/esisteaccessogetpathparamrequest.md
+  - docs/models/esisteaccessogetpathparamresponse.md
+  - docs/models/esisteaccessogetqueryparamrequest.md
+  - docs/models/esisteaccessogetqueryparamresponse.md
+  - docs/models/esisteaccessopostrequest.md
+  - docs/models/esisteaccessopostresponse.md
+  - docs/models/esisteodonimogetpathparamrequest.md
+  - docs/models/esisteodonimogetpathparamresponse.md
+  - docs/models/esisteodonimogetqueryparamrequest.md
+  - docs/models/esisteodonimogetqueryparamresponse.md
+  - docs/models/esisteodonimopostrequest.md
+  - docs/models/esisteodonimopostresponse.md
+  - docs/models/prognazaccgetpathparamdata.md
+  - docs/models/prognazaccgetpathparamrequest.md
+  - docs/models/prognazaccgetpathparamresponse.md
+  - docs/models/prognazaccgetqueryparamdata.md
+  - docs/models/prognazaccgetqueryparamrequest.md
+  - docs/models/prognazaccgetqueryparamresponse.md
+  - docs/models/prognazaccpostdata.md
+  - docs/models/prognazaccpostrequest.md
+  - docs/models/prognazaccpostresponse.md
+  - docs/models/prognazareagetpathparamdata.md
+  - docs/models/prognazareagetpathparamrequest.md
+  - docs/models/prognazareagetpathparamresponse.md
+  - docs/models/prognazareagetqueryparamdata.md
+  - docs/models/prognazareagetqueryparamrequest.md
+  - docs/models/prognazareagetqueryparamresponse.md
+  - docs/models/prognazareapostdata.md
+  - docs/models/prognazareapostrequest.md
+  - docs/models/prognazareapostresponse.md
+  - docs/models/showstatusresponse.md
+  - docs/models/utils/retryconfig.md
+  - docs/sdks/anncsu/README.md
+  - docs/sdks/jsonpost/README.md
+  - docs/sdks/pathparam/README.md
+  - docs/sdks/queryparam/README.md
+  - docs/sdks/status/README.md
+  - py.typed
+  - pylintrc
+  - pyproject.toml
+  - scripts/publish.sh
+  - src/anncsu/__init__.py
+  - src/anncsu/_hooks/__init__.py
+  - src/anncsu/_hooks/sdkhooks.py
+  - src/anncsu/_hooks/types.py
+  - src/anncsu/_version.py
+  - src/anncsu/basesdk.py
+  - src/anncsu/errors/__init__.py
+  - src/anncsu/errors/anncsuerror.py
+  - src/anncsu/errors/apierror.py
+  - src/anncsu/errors/elencoaccessigetpathparamop.py
+  - src/anncsu/errors/elencoaccessigetqueryparamop.py
+  - src/anncsu/errors/elencoaccessipostop.py
+  - src/anncsu/errors/elencoaccessiproggetpathparamop.py
+  - src/anncsu/errors/elencoaccessiproggetqueryparamop.py
+  - src/anncsu/errors/elencoaccessiprogpostop.py
+  - src/anncsu/errors/elencoodonimigetpathparamop.py
+  - src/anncsu/errors/elencoodonimigetqueryparamop.py
+  - src/anncsu/errors/elencoodonimipostop.py
+  - src/anncsu/errors/elencoodonimiproggetpathparamop.py
+  - src/anncsu/errors/elencoodonimiproggetqueryparamop.py
+  - src/anncsu/errors/elencoodonimiprogpostop.py
+  - src/anncsu/errors/esisteaccessogetpathparamop.py
+  - src/anncsu/errors/esisteaccessogetqueryparamop.py
+  - src/anncsu/errors/esisteaccessopostop.py
+  - src/anncsu/errors/esisteodonimogetpathparamop.py
+  - src/anncsu/errors/esisteodonimogetqueryparamop.py
+  - src/anncsu/errors/esisteodonimopostop.py
+  - src/anncsu/errors/no_response_error.py
+  - src/anncsu/errors/prognazaccgetpathparamop.py
+  - src/anncsu/errors/prognazaccgetqueryparamop.py
+  - src/anncsu/errors/prognazaccpostop.py
+  - src/anncsu/errors/prognazareagetpathparamop.py
+  - src/anncsu/errors/prognazareagetqueryparamop.py
+  - src/anncsu/errors/prognazareapostop.py
+  - src/anncsu/errors/responsevalidationerror.py
+  - src/anncsu/errors/show_statusop.py
+  - src/anncsu/httpclient.py
+  - src/anncsu/jsonpost.py
+  - src/anncsu/models/__init__.py
+  - src/anncsu/models/elencoaccessigetpathparamop.py
+  - src/anncsu/models/elencoaccessigetqueryparamop.py
+  - src/anncsu/models/elencoaccessipostop.py
+  - src/anncsu/models/elencoaccessiproggetpathparamop.py
+  - src/anncsu/models/elencoaccessiproggetqueryparamop.py
+  - src/anncsu/models/elencoaccessiprogpostop.py
+  - src/anncsu/models/elencoodonimigetpathparamop.py
+  - src/anncsu/models/elencoodonimigetqueryparamop.py
+  - src/anncsu/models/elencoodonimipostop.py
+  - src/anncsu/models/elencoodonimiproggetpathparamop.py
+  - src/anncsu/models/elencoodonimiproggetqueryparamop.py
+  - src/anncsu/models/elencoodonimiprogpostop.py
+  - src/anncsu/models/esisteaccessogetpathparamop.py
+  - src/anncsu/models/esisteaccessogetqueryparamop.py
+  - src/anncsu/models/esisteaccessopostop.py
+  - src/anncsu/models/esisteodonimogetpathparamop.py
+  - src/anncsu/models/esisteodonimogetqueryparamop.py
+  - src/anncsu/models/esisteodonimopostop.py
+  - src/anncsu/models/prognazaccgetpathparamop.py
+  - src/anncsu/models/prognazaccgetqueryparamop.py
+  - src/anncsu/models/prognazaccpostop.py
+  - src/anncsu/models/prognazareagetpathparamop.py
+  - src/anncsu/models/prognazareagetqueryparamop.py
+  - src/anncsu/models/prognazareapostop.py
+  - src/anncsu/models/show_statusop.py
+  - src/anncsu/pathparam.py
+  - src/anncsu/py.typed
+  - src/anncsu/queryparam.py
+  - src/anncsu/sdk.py
+  - src/anncsu/sdkconfiguration.py
+  - src/anncsu/status.py
+  - src/anncsu/types/__init__.py
+  - src/anncsu/types/basemodel.py
+  - src/anncsu/utils/__init__.py
+  - src/anncsu/utils/annotations.py
+  - src/anncsu/utils/datetimes.py
+  - src/anncsu/utils/enums.py
+  - src/anncsu/utils/eventstreaming.py
+  - src/anncsu/utils/forms.py
+  - src/anncsu/utils/headers.py
+  - src/anncsu/utils/logger.py
+  - src/anncsu/utils/metadata.py
+  - src/anncsu/utils/queryparams.py
+  - src/anncsu/utils/requestbodies.py
+  - src/anncsu/utils/retries.py
+  - src/anncsu/utils/security.py
+  - src/anncsu/utils/serializers.py
+  - src/anncsu/utils/unmarshal_json_response.py
+  - src/anncsu/utils/url.py
+  - src/anncsu/utils/values.py
+examples:
+  esisteOdonimoGetQueryParam:
+    speakeasy-default-esiste-odonimo-get-query-param:
+      parameters:
+        query:
+          codcom: "H501"
+          denom: "VklBIFJPTUE="
+      responses:
+        "200":
+          application/json: {"res": "esisteodonimo"}
+        "400":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  esisteAccessoGetQueryParam:
+    speakeasy-default-esiste-accesso-get-query-param:
+      parameters:
+        query:
+          codcom: "H501"
+          denom: "VklBIFJPTUE="
+          accesso: "42"
+      responses:
+        "200":
+          application/json: {"res": "esisteaccesso"}
+        "400":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  elencoOdonimiGetQueryParam:
+    speakeasy-default-elenco-odonimi-get-query-param:
+      parameters:
+        query:
+          codcom: "H501"
+          denomparz: "Uk9NQQ=="
+      responses:
+        "200":
+          application/json: {"res": "elencoodonimi", "data": [{"dug": "AUTOSTRADA", "denomuff": "ROMA AEROPORTO DI FIUMICINO"}]}
+        "400":
+          application/problem+json: {}
+        "404":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  elencoAccessiGetQueryParam:
+    speakeasy-default-elenco-accessi-get-query-param:
+      parameters:
+        query:
+          codcom: "H501"
+          denom: "VklBIFJPTUE="
+          accparz: "42"
+      responses:
+        "200":
+          application/json: {"res": "elencoaccessi", "data": [{"civico": "1", "esp": "A", "specif": "ROSSO", "metrico": "1200"}]}
+        "400":
+          application/problem+json: {}
+        "404":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  elencoodonimiprogGetQueryParam:
+    speakeasy-default-elencoodonimiprog-get-query-param:
+      parameters:
+        query:
+          codcom: "H501"
+          denomparz: "Uk9NQQ=="
+      responses:
+        "200":
+          application/json: {"res": "elencoodonimiprog", "data": [{"prognaz": "919572", "dug": "AUTOSTRADA", "denomuff": "ROMA AEROPORTO DI FIUMICINO"}]}
+        "400":
+          application/problem+json: {}
+        "404":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  elencoaccessiprogGetQueryParam:
+    speakeasy-default-elencoaccessiprog-get-query-param:
+      parameters:
+        query:
+          prognaz: "919572"
+          accparz: "42"
+      responses:
+        "200":
+          application/json: {"res": "elencoaccessiprog", "data": [{"prognazacc": "6744962", "civico": "1", "esp": "A", "specif": "ROSSO", "metrico": "1200", "coordX": "12,5349017", "coordY": "44,0191923", "quota": "50", "metodo": "4"}]}
+        "400":
+          application/problem+json: {}
+        "404":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  prognazareaGetQueryParam:
+    speakeasy-default-prognazarea-get-query-param:
+      parameters:
+        query:
+          prognaz: "919572"
+      responses:
+        "200":
+          application/json: {"res": "prognazarea", "data": [{"prognaz": "919572", "dug": "AUTOSTRADA", "denomuff": "ROMA AEROPORTO DI FIUMICINO"}]}
+        "400":
+          application/problem+json: {}
+        "404":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  prognazaccGetQueryParam:
+    speakeasy-default-prognazacc-get-query-param:
+      parameters:
+        query:
+          prognazacc: "6744962"
+      responses:
+        "200":
+          application/json: {"res": "elencoodonimiprog", "data": [{"prognaz": "919572", "dug": "AUTOSTRADA", "denomuff": "ROMA AEROPORTO DI FIUMICINO", "prognazacc": "6744962", "civico": "1", "esp": "A", "specif": "ROSSO", "metrico": "1200", "coordX": "12,5349017", "coordY": "44,0191923", "quota": "50", "metodo": "4"}]}
+        "400":
+          application/problem+json: {}
+        "404":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  esisteOdonimoPost:
+    speakeasy-default-esiste-odonimo-post:
+      requestBody:
+        application/json: {"req": "esisteodonimo", "codcom": "H501", "denom": "VIA ROMA"}
+      responses:
+        "200":
+          application/json: {"res": "esisteodonimo"}
+        "400":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  esisteAccessoPost:
+    speakeasy-default-esiste-accesso-post:
+      requestBody:
+        application/json: {"req": "esisteaccesso", "codcom": "H501", "denom": "VIA ROMA", "accesso": "42"}
+      responses:
+        "200":
+          application/json: {"res": "esisteaccesso"}
+        "400":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  elencoOdonimiPost:
+    speakeasy-default-elenco-odonimi-post:
+      requestBody:
+        application/json: {"req": "elencoodonimi", "codcom": "H501", "denomparz": "ROMA"}
+      responses:
+        "200":
+          application/json: {"res": "elencoodonimi", "data": [{"dug": "AUTOSTRADA", "denomuff": "ROMA AEROPORTO DI FIUMICINO"}]}
+        "400":
+          application/problem+json: {}
+        "404":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  elencoAccessiPost:
+    speakeasy-default-elenco-accessi-post:
+      requestBody:
+        application/json: {"req": "elencoaccessi", "codcom": "H501", "denom": "VIA ROMA", "accparz": "42"}
+      responses:
+        "200":
+          application/json: {"res": "elencoaccessi", "data": [{"civico": "1", "esp": "A", "specif": "ROSSO", "metrico": "1200"}]}
+        "400":
+          application/problem+json: {}
+        "404":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  elencoodonimiprogPost:
+    speakeasy-default-elencoodonimiprog-post:
+      requestBody:
+        application/json: {"req": "elencoodonimiprog", "codcom": "H501", "denomparz": "ROMA"}
+      responses:
+        "200":
+          application/json: {"res": "elencoodonimiprog", "data": [{"prognaz": "919572", "dug": "AUTOSTRADA", "denomuff": "ROMA AEROPORTO DI FIUMICINO"}]}
+        "400":
+          application/problem+json: {}
+        "404":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  elencoaccessiprogPost:
+    speakeasy-default-elencoaccessiprog-post:
+      requestBody:
+        application/json: {"req": "elencoaccessiprog", "prognaz": "919572", "accparz": "42"}
+      responses:
+        "200":
+          application/json: {"res": "elencoaccessiprog", "data": [{"prognazacc": "6744962", "civico": "1", "esp": "A", "specif": "ROSSO", "metrico": "1200", "coordX": "12,5349017", "coordY": "44,0191923", "quota": "50", "metodo": "4"}]}
+        "400":
+          application/problem+json: {}
+        "404":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  prognazareaPost:
+    speakeasy-default-prognazarea-post:
+      requestBody:
+        application/json: {"req": "prognazarea", "prognaz": "919572"}
+      responses:
+        "200":
+          application/json: {"res": "prognazarea", "data": [{"prognaz": "919572", "dug": "AUTOSTRADA", "denomuff": "ROMA AEROPORTO DI FIUMICINO"}]}
+        "400":
+          application/problem+json: {}
+        "404":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  prognazaccPost:
+    speakeasy-default-prognazacc-post:
+      requestBody:
+        application/json: {"req": "prognazacc", "prognazacc": "6744962"}
+      responses:
+        "200":
+          application/json: {"res": "elencoodonimiprog", "data": [{"prognaz": "919572", "dug": "AUTOSTRADA", "denomuff": "ROMA AEROPORTO DI FIUMICINO", "prognazacc": "6744962", "civico": "1", "esp": "A", "specif": "ROSSO", "metrico": "1200", "coordX": "12,5349017", "coordY": "44,0191923", "quota": "50", "metodo": "4"}]}
+        "400":
+          application/problem+json: {}
+        "404":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  esisteOdonimoGetPathParam:
+    speakeasy-default-esiste-odonimo-get-path-param:
+      parameters:
+        path:
+          codcom: "H501"
+          denom: "VklBIFJPTUE="
+      responses:
+        "200":
+          application/json: {"res": "esisteodonimo"}
+        "400":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  esisteAccessoGetPathParam:
+    speakeasy-default-esiste-accesso-get-path-param:
+      parameters:
+        path:
+          codcom: "H501"
+          denom: "VklBIFJPTUE="
+          accesso: "42"
+      responses:
+        "200":
+          application/json: {"res": "esisteaccesso"}
+        "400":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  elencoOdonimiGetPathParam:
+    speakeasy-default-elenco-odonimi-get-path-param:
+      parameters:
+        path:
+          codcom: "H501"
+          denomparz: "Uk9NQQ=="
+      responses:
+        "200":
+          application/json: {"res": "elencoodonimi", "data": [{"dug": "AUTOSTRADA", "denomuff": "ROMA AEROPORTO DI FIUMICINO"}]}
+        "400":
+          application/problem+json: {}
+        "404":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  elencoAccessiGetPathParam:
+    speakeasy-default-elenco-accessi-get-path-param:
+      parameters:
+        path:
+          codcom: "H501"
+          denom: "VklBIFJPTUE="
+          accparz: "42"
+      responses:
+        "200":
+          application/json: {"res": "elencoaccessi", "data": [{"civico": "1", "esp": "A", "specif": "ROSSO", "metrico": "1200"}]}
+        "400":
+          application/problem+json: {}
+        "404":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  elencoodonimiprogGetPathParam:
+    speakeasy-default-elencoodonimiprog-get-path-param:
+      parameters:
+        path:
+          codcom: "H501"
+          denomparz: "Uk9NQQ=="
+      responses:
+        "200":
+          application/json: {"res": "elencoodonimiprog", "data": [{"prognaz": "919572", "dug": "AUTOSTRADA", "denomuff": "ROMA AEROPORTO DI FIUMICINO"}]}
+        "400":
+          application/problem+json: {}
+        "404":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  elencoaccessiprogGetPathParam:
+    speakeasy-default-elencoaccessiprog-get-path-param:
+      parameters:
+        path:
+          prognaz: "919572"
+          accparz: "42"
+      responses:
+        "200":
+          application/json: {"res": "elencoaccessiprog", "data": [{"prognazacc": "6744962", "civico": "1", "esp": "A", "specif": "ROSSO", "metrico": "1200", "coordX": "12,5349017", "coordY": "44,0191923", "quota": "50", "metodo": "4"}]}
+        "400":
+          application/problem+json: {}
+        "404":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  prognazareaGetPathParam:
+    speakeasy-default-prognazarea-get-path-param:
+      parameters:
+        path:
+          prognaz: "919572"
+      responses:
+        "200":
+          application/json: {"res": "prognazarea", "data": [{"prognaz": "919572", "dug": "AUTOSTRADA", "denomuff": "ROMA AEROPORTO DI FIUMICINO"}]}
+        "400":
+          application/problem+json: {}
+        "404":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  prognazaccGetPathParam:
+    speakeasy-default-prognazacc-get-path-param:
+      parameters:
+        path:
+          prognazacc: "6744962"
+      responses:
+        "200":
+          application/json: {"res": "elencoodonimiprog", "data": [{"prognaz": "919572", "dug": "AUTOSTRADA", "denomuff": "ROMA AEROPORTO DI FIUMICINO", "prognazacc": "6744962", "civico": "1", "esp": "A", "specif": "ROSSO", "metrico": "1200", "coordX": "12,5349017", "coordY": "44,0191923", "quota": "50", "metodo": "4"}]}
+        "400":
+          application/problem+json: {}
+        "404":
+          application/problem+json: {}
+        "405":
+          application/problem+json: {}
+        "422":
+          application/problem+json: {}
+        "500":
+          application/problem+json: {}
+  show_status:
+    speakeasy-default-show-status:
+      responses:
+        "200":
+          application/problem+json: {}
+        "503":
+          application/problem+json: {}
+examplesVersion: 1.0.2

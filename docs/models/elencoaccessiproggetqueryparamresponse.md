@@ -1,0 +1,11 @@
+# ElencoaccessiprogGetQueryParamResponse
+
+Successful operation
+
+
+## Fields
+
+| Field                                                                                              | Type                                                                                               | Required                                                                                           | Description                                                                                        | Example                                                                                            |
+| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `res`                                                                                              | *Optional[str]*                                                                                    | :heavy_minus_sign:                                                                                 | N/A                                                                                                | elencoaccessiprog                                                                                  |
+| `data`                                                                                             | List[[models.ElencoaccessiprogGetQueryParamData](../models/elencoaccessiproggetqueryparamdata.md)] | :heavy_minus_sign:                                                                                 | N/A                                                                                                |                                                                                                    |

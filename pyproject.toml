@@ -7,8 +7,7 @@ authors = [
     { name = "Francesco Bartoli", email = "francesco.bartoli@geobeyond.it" },
 ]
 requires-python = ">=3.12"
-dependencies = []
-
+dependencies = ["httpcore >=1.0.9", "httpx >=0.28.1", "pydantic >=2.11.2"]
 [build-system]
 requires = ["uv_build>=0.8.3,<0.9.0"]
 build-backend = "uv_build"
