@@ -1,0 +1,21 @@
+workflowVersion: 1.0.0
+speakeasyVersion: latest
+sources:
+    ANNCSU REST API:
+        inputs:
+            - location: ../oas/Specifica API - ANNCSU – Consultazione per le PA.yaml
+        transformations:
+            - removeUnused: true
+        output: .speakeasy/out.openapi.yaml
+        registry:
+            location: registry.speakeasyapi.dev/geobeyond-zd1/anncsu/anncsu-rest-api
+targets:
+    anncsu:
+        target: python
+        source: ANNCSU REST API
+        codeSamples:
+            registry:
+                location: registry.speakeasyapi.dev/geobeyond-zd1/anncsu/anncsu-rest-api-python-code-samples
+            labelOverride:
+                fixedValue: Python (SDK)
+            blocking: false
