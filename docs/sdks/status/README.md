@@ -18,7 +18,7 @@ un errore.
 
 <!-- UsageSnippet language="python" operationID="show_status" method="get" path="/status" -->
 ```python
-from anncsu import Anncsu
+from anncsu.pa import Anncsu
 
 
 with Anncsu() as a_client:
