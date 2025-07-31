@@ -5,7 +5,7 @@ from typing import Any, Optional
 import httpx
 
 from .serializers import unmarshal_json
-from anncsu import errors
+from anncsu.pa import errors
 
 
 def unmarshal_json_response(
