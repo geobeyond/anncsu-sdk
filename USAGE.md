@@ -1,7 +1,7 @@
 <!-- Start SDK Example Usage [usage] -->
 ```python
 # Synchronous Example
-from anncsu import Anncsu
+from anncsu.pa import Anncsu
 
 
 with Anncsu() as a_client:
@@ -17,7 +17,7 @@ with Anncsu() as a_client:
 The same SDK client can also be used to make asychronous requests by importing asyncio.
 ```python
 # Asynchronous Example
-from anncsu import Anncsu
+from anncsu.pa import Anncsu
 import asyncio
 
 async def main():

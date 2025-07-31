@@ -76,7 +76,7 @@ poetry add git+<UNSET>.git
 You can use this SDK in a Python shell with [uv](https://docs.astral.sh/uv/) and the `uvx` command that comes with it like so:
 
 ```shell
-uvx --from anncsu python
+uvx --from anncsu.pa python
 ```
 
 It's also possible to write a standalone Python script without needing to set up a whole project like so:
@@ -90,7 +90,7 @@ It's also possible to write a standalone Python script without needing to set up
 # ]
 # ///
 
-from anncsu import Anncsu
+from anncsu.pa import Anncsu
 
 sdk = Anncsu(
   # SDK arguments
@@ -120,7 +120,7 @@ Generally, the SDK will work well with most IDEs out of the box. However, when u
 
 ```python
 # Synchronous Example
-from anncsu import Anncsu
+from anncsu.pa import Anncsu
 
 
 with Anncsu() as a_client:
@@ -136,7 +136,7 @@ with Anncsu() as a_client:
 The same SDK client can also be used to make asychronous requests by importing asyncio.
 ```python
 # Asynchronous Example
-from anncsu import Anncsu
+from anncsu.pa import Anncsu
 import asyncio
 
 async def main():
@@ -206,8 +206,8 @@ Some of the endpoints in this SDK support retries. If you use the SDK without an
 
 To change the default retry strategy for a single API call, simply provide a `RetryConfig` object to the call:
 ```python
-from anncsu import Anncsu
-from anncsu.utils import BackoffStrategy, RetryConfig
+from anncsu.pa import Anncsu
+from anncsu.pa.utils import BackoffStrategy, RetryConfig
 
 
 with Anncsu() as a_client:
@@ -222,8 +222,8 @@ with Anncsu() as a_client:
 
 If you'd like to override the default retry strategy for all operations that support retries, you can use the `retry_config` optional parameter when initializing the SDK:
 ```python
-from anncsu import Anncsu
-from anncsu.utils import BackoffStrategy, RetryConfig
+from anncsu.pa import Anncsu
+from anncsu.pa.utils import BackoffStrategy, RetryConfig
 
 
 with Anncsu(
@@ -254,7 +254,7 @@ with Anncsu(
 
 ### Example
 ```python
-from anncsu import Anncsu, errors
+from anncsu.pa import Anncsu, errors
 
 
 with Anncsu() as a_client:
@@ -425,7 +425,7 @@ with Anncsu() as a_client:
 
 The default server can be overridden globally by passing a URL to the `server_url: str` optional parameter when initializing the SDK client instance. For example:
 ```python
-from anncsu import Anncsu
+from anncsu.pa import Anncsu
 
 
 with Anncsu(
@@ -449,7 +449,7 @@ This allows you to wrap the client with your own custom logic, such as adding cu
 
 For example, you could specify a header for every request that this sdk makes as follows:
 ```python
-from anncsu import Anncsu
+from anncsu.pa import Anncsu
 import httpx
 
 http_client = httpx.Client(headers={"x-custom-header": "someValue"})
@@ -458,8 +458,8 @@ s = Anncsu(client=http_client)
 
 or you could wrap the client with your own custom logic:
 ```python
-from anncsu import Anncsu
-from anncsu.httpclient import AsyncHttpClient
+from anncsu.pa import Anncsu
+from anncsu.pa.httpclient import AsyncHttpClient
 import httpx
 
 class CustomClient(AsyncHttpClient):
@@ -529,7 +529,7 @@ The `Anncsu` class implements the context manager protocol and registers a final
 [context-manager]: https://docs.python.org/3/reference/datamodel.html#context-managers
 
 ```python
-from anncsu import Anncsu
+from anncsu.pa import Anncsu
 def main():
 
     with Anncsu() as a_client:
@@ -551,7 +551,7 @@ You can setup your SDK to emit debug logs for SDK requests and responses.
 
 You can pass your own logger class directly into your SDK.
 ```python
-from anncsu import Anncsu
+from anncsu.pa import Anncsu
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
