@@ -3,13 +3,12 @@
 import importlib.metadata
 
 __title__: str = "anncsu"
-__version__: str = "0.0.1"
 __openapi_doc_version__: str = "1.0.0"
 __gen_version__: str = "2.667.0"
 __user_agent__: str = "speakeasy-sdk/python 0.0.1 2.667.0 1.0.0 anncsu"
 
 try:
     if __package__ is not None:
-        __version__ = importlib.metadata.version(__package__)
+        __version__ = importlib.metadata.version(__name__)
 except importlib.metadata.PackageNotFoundError:
-    pass
+    __version__ = "0.0.0"  # Fallback for development mode
