@@ -1,6 +1,6 @@
 [project]
 name = "anncsu-sdk"
-version = "0.0.3"
+dynamic = ["version"]
 description = "ANNCSU Software Development Kit for API consumption"
 readme = "README.md"
 authors = [
@@ -8,9 +8,30 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = ["httpcore >=1.0.9", "httpx >=0.28.1", "pydantic >=2.11.2"]
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+    "ruff>=0.12.7",
+    "uv-dynamic-versioning>=0.6.0",
+]
 [build-system]
-requires = ["uv_build>=0.8.3,<0.9.0"]
-build-backend = "uv_build"
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"
 [tool.uv.build-backend]
 module-name = "anncsu.pa"
 module-root = "src"
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+[tool.hatch.build.targets.wheel]
+packages = ["src/anncsu"]
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "pep440"
+bump = true
+fallback-version = "0.0.0"
+[tool.ruff.lint]
+extend-select = ["B"]
+extend-ignore = ["B026"]
+[tool.pytest.ini_options]
+addopts = "--maxfail=1 --cov=pa"
