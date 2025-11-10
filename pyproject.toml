@@ -34,4 +34,4 @@ fallback-version = "0.0.0"
 extend-select = ["B"]
 extend-ignore = ["B026"]
 [tool.pytest.ini_options]
-addopts = "--maxfail=1 --cov=pa"
+addopts = "--maxfail=1 --cov=anncsu"

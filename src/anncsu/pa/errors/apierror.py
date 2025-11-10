@@ -3,7 +3,7 @@
 import httpx
 from typing import Optional
 
-from anncsu.pa.errors import AnncsuError
+from anncsu.common.errors import AnncsuBaseError as AnncsuError
 
 MAX_MESSAGE_LEN = 10_000
 

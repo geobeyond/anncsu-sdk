@@ -8,7 +8,7 @@ from ._version import (
 )
 from .httpclient import AsyncHttpClient, HttpClient
 from .utils import Logger, RetryConfig, remove_suffix
-from anncsu.pa.types import OptionalNullable, UNSET
+from anncsu.common.types import OptionalNullable, UNSET
 from dataclasses import dataclass
 from pydantic import Field
 from typing import Dict, Optional, Tuple, Union

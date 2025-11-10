@@ -35,6 +35,7 @@ ANNCSU REST API: API dei servizi REST di ANNCSU su PDND
   * [Custom HTTP Client](#custom-http-client)
   * [Resource Management](#resource-management)
   * [Debugging](#debugging)
+  * [Architecture](#architecture)
 * [Development](#development)
   * [Maturity](#maturity)
   * [Contributions](#contributions)
@@ -207,7 +208,7 @@ Some of the endpoints in this SDK support retries. If you use the SDK without an
 To change the default retry strategy for a single API call, simply provide a `RetryConfig` object to the call:
 ```python
 from anncsu.pa import Anncsu
-from anncsu.pa.utils import BackoffStrategy, RetryConfig
+from anncsu.common.utils import BackoffStrategy, RetryConfig
 
 
 with Anncsu() as a_client:
@@ -223,7 +224,7 @@ with Anncsu() as a_client:
 If you'd like to override the default retry strategy for all operations that support retries, you can use the `retry_config` optional parameter when initializing the SDK:
 ```python
 from anncsu.pa import Anncsu
-from anncsu.pa.utils import BackoffStrategy, RetryConfig
+from anncsu.common.utils import BackoffStrategy, RetryConfig
 
 
 with Anncsu(
@@ -562,6 +563,54 @@ You can also enable a default debug logger by setting an environment variable `A
 <!-- End Debugging [debug] -->
 
 <!-- Placeholder for Future Speakeasy SDK Sections -->
+
+<!-- Start Architecture [architecture] -->
+## Architecture
+
+This SDK follows a modular architecture designed to support multiple ANNCSU API specifications:
+
+### Package Structure
+
+```
+anncsu/
+├── common/          # Shared infrastructure (utilities, types, HTTP client, base errors)
+└── pa/              # API-specific: Consultazione per le PA
+    ├── models/      # Request/response models
+    ├── errors/      # Operation-specific errors
+    └── sdk.py       # Main SDK class
+```
+
+### Shared Components (`anncsu.common`)
+
+The `anncsu.common` package contains shared primitives used across all ANNCSU API clients:
+
+- **Types**: Base models and type definitions (`BaseModel`, `OptionalNullable`, `UNSET`)
+- **Utilities**: 16 utility modules for HTTP operations, serialization, retry logic, etc.
+- **HTTP Infrastructure**: HTTP client wrappers, base SDK class, configuration
+- **Hooks**: Before/after request hooks for customization
+- **Base Errors**: Generic error classes (`AnncsuBaseError`, `APIError`, `NoResponseError`)
+
+### Using Shared Components
+
+When using advanced features like retry configuration, import from `anncsu.common`:
+
+```python
+from anncsu.pa import Anncsu
+from anncsu.common.utils import BackoffStrategy, RetryConfig  # Shared utilities
+```
+
+For regular SDK usage, you only need to import from `anncsu.pa`:
+
+```python
+from anncsu.pa import Anncsu  # All you need for basic usage
+```
+
+### Multiple API Support
+
+This architecture allows adding new ANNCSU API specifications (e.g., aggiornamento_accessi, coordinate, interni, odonimi) as separate packages under the `anncsu` namespace, all sharing the same infrastructure.
+
+For more details, see [Refactoring Documentation](./docs/refactoring/REFACTORING_SUMMARY.md).
+<!-- End Architecture [architecture] -->
 
 # Development
 
