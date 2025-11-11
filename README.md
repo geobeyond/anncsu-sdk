@@ -28,6 +28,7 @@ ANNCSU REST API: API dei servizi REST di ANNCSU su PDND
   * [SDK Installation](#sdk-installation)
   * [IDE Support](#ide-support)
   * [SDK Example Usage](#sdk-example-usage)
+  * [Security and Authentication](#security-and-authentication)
   * [Available Resources and Operations](#available-resources-and-operations)
   * [Retries](#retries)
   * [Error Handling](#error-handling)
@@ -152,6 +153,50 @@ async def main():
 asyncio.run(main())
 ```
 <!-- End SDK Example Usage [usage] -->
+
+<!-- Start Security and Authentication [security] -->
+## Security and Authentication
+
+All ANNCSU APIs use PDND (Piattaforma Digitale Nazionale Dati) voucher-based authentication with HTTP Bearer tokens.
+
+### Basic Authentication
+
+```python
+from anncsu.pa import Anncsu
+from anncsu.common import Security
+
+# Create security configuration with your PDND voucher
+security = Security(bearer="your-pdnd-voucher-token")
+
+# Initialize SDK with security
+sdk = Anncsu(security=security)
+
+# Make authenticated requests
+response = sdk.queryparam.esiste_odonimo_get_query_param(
+    codcom="H501",
+    denom="VklBIFJPTUE="
+)
+```
+
+### Key Features
+
+- **PDND Voucher**: Uses PDND (Piattaforma Digitale Nazionale Dati) authentication
+- **Bearer Token**: JWT format tokens in Authorization header
+- **Common Security**: Same `Security` class works across all ANNCSU APIs
+- **Type-Safe**: Full type hints with modern Python syntax
+
+### Documentation
+
+For comprehensive security documentation including:
+- PDND voucher format and JWT structure
+- Token refresh strategies
+- Error handling (401/403)
+- Best practices and security checklist
+- Testing with security
+
+See [docs/SECURITY.md](docs/SECURITY.md)
+
+<!-- End Security and Authentication [security] -->
 
 <!-- Start Available Resources and Operations [operations] -->
 ## Available Resources and Operations
