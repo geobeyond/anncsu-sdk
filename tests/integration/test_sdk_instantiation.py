@@ -71,6 +71,81 @@ class TestSdkInstantiation:
         asyncio.run(test_async())
 
 
+class TestSdkWithSecurityConfiguration:
+    """Test SDK with security configuration."""
+
+    def test_sdk_with_security_parameter(self):
+        """Test SDK instantiation with security parameter."""
+        from anncsu.common import Security
+        from anncsu.pa import Anncsu
+
+        security = Security(bearer="test-pdnd-voucher-token")
+        sdk = Anncsu(security=security)
+
+        assert sdk is not None
+        assert sdk.sdk_configuration.security is not None
+        assert sdk.sdk_configuration.security.bearer == "test-pdnd-voucher-token"
+
+    def test_sdk_without_security_parameter(self):
+        """Test SDK instantiation without security parameter (optional)."""
+        from anncsu.pa import Anncsu
+
+        sdk = Anncsu()
+
+        assert sdk is not None
+        assert sdk.sdk_configuration.security is None
+
+    def test_sdk_with_jwt_bearer_token(self):
+        """Test SDK with realistic JWT bearer token."""
+        from anncsu.common import Security
+        from anncsu.pa import Anncsu
+
+        jwt_token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0In0.signature"
+        security = Security(bearer=jwt_token)
+        sdk = Anncsu(security=security)
+
+        assert sdk.sdk_configuration.security.bearer == jwt_token
+
+    def test_security_is_stored_in_configuration(self):
+        """Test that security is properly stored in SDK configuration."""
+        from anncsu.common import Security
+        from anncsu.pa import Anncsu
+
+        security = Security(bearer="stored-token")
+        sdk = Anncsu(security=security)
+
+        # Security should be accessible via configuration
+        assert hasattr(sdk.sdk_configuration, "security")
+        assert sdk.sdk_configuration.security == security
+
+    def test_sdk_with_none_security(self):
+        """Test SDK instantiation with explicit None security."""
+        from anncsu.pa import Anncsu
+
+        sdk = Anncsu(security=None)
+
+        assert sdk is not None
+        assert sdk.sdk_configuration.security is None
+
+    def test_multiple_sdks_with_different_security(self):
+        """Test multiple SDK instances with different security configs."""
+        from anncsu.common import Security
+        from anncsu.pa import Anncsu
+
+        security1 = Security(bearer="token-1")
+        security2 = Security(bearer="token-2")
+
+        sdk1 = Anncsu(security=security1)
+        sdk2 = Anncsu(security=security2)
+
+        assert sdk1.sdk_configuration.security.bearer == "token-1"
+        assert sdk2.sdk_configuration.security.bearer == "token-2"
+        assert (
+            sdk1.sdk_configuration.security.bearer
+            != sdk2.sdk_configuration.security.bearer
+        )
+
+
 class TestSdkWithRetryConfiguration:
     """Test SDK with retry configuration using common utilities."""
 

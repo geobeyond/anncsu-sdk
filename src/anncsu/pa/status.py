@@ -52,6 +52,7 @@ class Status(BaseSDK):
             accept_header_value="application/problem+json",
             http_headers=http_headers,
             timeout_ms=timeout_ms,
+            security=self.sdk_configuration.security,
         )
 
         if retries == UNSET:
