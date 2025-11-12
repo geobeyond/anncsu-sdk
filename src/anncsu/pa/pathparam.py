@@ -61,6 +61,7 @@ class Pathparam(BaseSDK):
             accept_header_value="application/json",
             http_headers=http_headers,
             timeout_ms=timeout_ms,
+            security=self.sdk_configuration.security,
         )
 
         if retries == UNSET:
@@ -292,6 +293,7 @@ class Pathparam(BaseSDK):
             accept_header_value="application/json",
             http_headers=http_headers,
             timeout_ms=timeout_ms,
+            security=self.sdk_configuration.security,
         )
 
         if retries == UNSET:
@@ -523,6 +525,7 @@ class Pathparam(BaseSDK):
             accept_header_value="application/json",
             http_headers=http_headers,
             timeout_ms=timeout_ms,
+            security=self.sdk_configuration.security,
         )
 
         if retries == UNSET:
@@ -764,6 +767,7 @@ class Pathparam(BaseSDK):
             accept_header_value="application/json",
             http_headers=http_headers,
             timeout_ms=timeout_ms,
+            security=self.sdk_configuration.security,
         )
 
         if retries == UNSET:
@@ -1005,6 +1009,7 @@ class Pathparam(BaseSDK):
             accept_header_value="application/json",
             http_headers=http_headers,
             timeout_ms=timeout_ms,
+            security=self.sdk_configuration.security,
         )
 
         if retries == UNSET:
@@ -1249,6 +1254,7 @@ class Pathparam(BaseSDK):
             accept_header_value="application/json",
             http_headers=http_headers,
             timeout_ms=timeout_ms,
+            security=self.sdk_configuration.security,
         )
 
         if retries == UNSET:
@@ -1490,6 +1496,7 @@ class Pathparam(BaseSDK):
             accept_header_value="application/json",
             http_headers=http_headers,
             timeout_ms=timeout_ms,
+            security=self.sdk_configuration.security,
         )
 
         if retries == UNSET:
@@ -1718,6 +1725,7 @@ class Pathparam(BaseSDK):
             accept_header_value="application/json",
             http_headers=http_headers,
             timeout_ms=timeout_ms,
+            security=self.sdk_configuration.security,
         )
 
         if retries == UNSET:

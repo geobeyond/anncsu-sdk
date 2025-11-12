@@ -67,6 +67,7 @@ class JSONPost(BaseSDK):
                 request, False, False, "json", models.EsisteOdonimoPostRequest
             ),
             timeout_ms=timeout_ms,
+            security=self.sdk_configuration.security,
         )
 
         if retries == UNSET:
@@ -294,6 +295,7 @@ class JSONPost(BaseSDK):
                 request, False, False, "json", models.EsisteAccessoPostRequest
             ),
             timeout_ms=timeout_ms,
+            security=self.sdk_configuration.security,
         )
 
         if retries == UNSET:
@@ -521,6 +523,7 @@ class JSONPost(BaseSDK):
                 request, False, False, "json", models.ElencoOdonimiPostRequest
             ),
             timeout_ms=timeout_ms,
+            security=self.sdk_configuration.security,
         )
 
         if retries == UNSET:
@@ -758,6 +761,7 @@ class JSONPost(BaseSDK):
                 request, False, False, "json", models.ElencoAccessiPostRequest
             ),
             timeout_ms=timeout_ms,
+            security=self.sdk_configuration.security,
         )
 
         if retries == UNSET:
@@ -995,6 +999,7 @@ class JSONPost(BaseSDK):
                 request, False, False, "json", models.ElencoodonimiprogPostRequest
             ),
             timeout_ms=timeout_ms,
+            security=self.sdk_configuration.security,
         )
 
         if retries == UNSET:
@@ -1241,6 +1246,7 @@ class JSONPost(BaseSDK):
                 request, False, False, "json", models.ElencoaccessiprogPostRequest
             ),
             timeout_ms=timeout_ms,
+            security=self.sdk_configuration.security,
         )
 
         if retries == UNSET:
@@ -1484,6 +1490,7 @@ class JSONPost(BaseSDK):
                 request, False, False, "json", models.PrognazareaPostRequest
             ),
             timeout_ms=timeout_ms,
+            security=self.sdk_configuration.security,
         )
 
         if retries == UNSET:
@@ -1712,6 +1719,7 @@ class JSONPost(BaseSDK):
                 request, False, False, "json", models.PrognazaccPostRequest
             ),
             timeout_ms=timeout_ms,
+            security=self.sdk_configuration.security,
         )
 
         if retries == UNSET:

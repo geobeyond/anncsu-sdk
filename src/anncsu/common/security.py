@@ -4,11 +4,15 @@ This module provides the Security class that handles authentication
 across all ANNCSU API specifications using PDND Voucher tokens.
 """
 
-from dataclasses import dataclass
+from typing import Annotated
+
+from pydantic import Field
+
+from .types import BaseModel
+from .utils.metadata import FieldMetadata, SecurityMetadata
 
 
-@dataclass
-class Security:
+class Security(BaseModel):
     """Security configuration for ANNCSU API authentication.
 
     All ANNCSU APIs use PDND (Piattaforma Digitale Nazionale Dati) voucher-based
@@ -23,4 +27,15 @@ class Security:
         >>> # Token will be used in Authorization: Bearer your-pdnd-voucher-token
     """
 
-    bearer: str | None = None
+    bearer: Annotated[
+        str | None,
+        Field(default=None),
+        FieldMetadata(
+            security=SecurityMetadata(
+                scheme=True,
+                scheme_type="http",
+                sub_type="bearer",
+                field_name="Authorization",
+            )
+        ),
+    ] = None
