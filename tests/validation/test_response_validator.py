@@ -36,10 +36,11 @@ class TestResponseValidator:
     @pytest.fixture
     def spec_path(self):
         """Fixture providing path to test OpenAPI spec."""
-        # Use the actual PA spec from the SDK
+        # Use the actual PA spec from the SDK (dev environment)
         return (
             Path(__file__).parent.parent.parent
             / "oas"
+            / "dev"
             / "Specifica API - ANNCSU – Consultazione per le PA.yaml"
         )
 

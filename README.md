@@ -675,6 +675,10 @@ We look forward to hearing your feedback. Feel free to open a PR or an issue wit
 
 ## Validate the specifications
 
+### Development/Validation Environment
 ```shell
-spectral lint oas/Specifica\ API\ -\ ANNCSU\ –\ Consultazione\ per\ le\ PA.yaml --ruleset oas/.spectral.yaml
+spectral lint oas/dev/Specifica\ API\ -\ ANNCSU\ –\ Consultazione\ per\ le\ PA.yaml --ruleset oas/.spectral.yaml
 ```
+
+> [!NOTE]
+> Production environment specification will be available in `oas/prod/` when provided by Agenzia delle Entrate.
