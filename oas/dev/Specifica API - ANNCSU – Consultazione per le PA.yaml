@@ -2651,16 +2651,16 @@ components:
 
   responses:
     # Predefined error codes for this API
-    # 400BadRequest:
-    #   $ref: "https://teamdigitale.github.io/openapi/0.0.7/definitions.yaml#/responses/400BadRequest"
-    # 404NotFound:
-    #   $ref: "https://teamdigitale.github.io/openapi/0.0.7/definitions.yaml#/responses/404NotFound"
-    # 429TooManyRequests:
-    #   $ref: "https://teamdigitale.github.io/openapi/0.0.7/definitions.yaml#/responses/429TooManyRequests"
-    # 503ServiceUnavailable:
-    #   $ref: "https://teamdigitale.github.io/openapi/0.0.7/definitions.yaml#/responses/503ServiceUnavailable"
-    # default:
-    #   $ref: "https://teamdigitale.github.io/openapi/0.0.7/definitions.yaml#/responses/default"
+    400BadRequest:
+      $ref: "https://teamdigitale.github.io/openapi/0.0.7/definitions.yaml#/responses/400BadRequest"
+    404NotFound:
+      $ref: "https://teamdigitale.github.io/openapi/0.0.7/definitions.yaml#/responses/404NotFound"
+    429TooManyRequests:
+      $ref: "https://teamdigitale.github.io/openapi/0.0.7/definitions.yaml#/responses/429TooManyRequests"
+    503ServiceUnavailable:
+      $ref: "https://teamdigitale.github.io/openapi/0.0.7/definitions.yaml#/responses/503ServiceUnavailable"
+    default:
+      $ref: "https://teamdigitale.github.io/openapi/0.0.7/definitions.yaml#/responses/default"
 
   schemas:
     Problem:
