@@ -25,6 +25,7 @@ dev = [
     "polyfactory>=2.18.0",
     "hypothesis>=6.122.3",
     "ipython>=9.7.0",
+    "typer>=0.15.0",
 ]
 [build-system]
 requires = ["hatchling", "uv-dynamic-versioning"]
