@@ -141,10 +141,17 @@ from pathlib import Path
 from anncsu.pa import Anncsu
 
 # Enable response validation
+# For development/validation environment:
 sdk = Anncsu(
     validate_responses=True,
-    openapi_spec_path=Path("oas/Specifica API - ANNCSU – Consultazione per le PA.yaml")
+    openapi_spec_path=Path("oas/dev/Specifica API - ANNCSU – Consultazione per le PA.yaml")
 )
+
+# For production environment:
+# sdk = Anncsu(
+#     validate_responses=True,
+#     openapi_spec_path=Path("oas/prod/Specifica API - ANNCSU – Consultazione per le PA.yaml")
+# )
 
 # Now all API responses will be validated against the OpenAPI spec
 response = sdk.queryparam.esiste_odonimo_get_query_param(
@@ -189,8 +196,9 @@ from anncsu.common import ResponseValidator
 import httpx
 
 # Initialize validator
+# Choose appropriate environment spec:
 validator = ResponseValidator(
-    Path("oas/Specifica API - ANNCSU – Consultazione per le PA.yaml")
+    Path("oas/dev/Specifica API - ANNCSU – Consultazione per le PA.yaml")  # or oas/prod/...
 )
 
 # Validate a response
