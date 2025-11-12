@@ -42,6 +42,8 @@ vcs = "git"
 style = "pep440"
 bump = true
 fallback-version = "0.0.0"
+# Disable local version identifiers for PyPI compatibility
+metadata = false
 [tool.ruff.lint]
 extend-select = ["B"]
 extend-ignore = ["B026"]
