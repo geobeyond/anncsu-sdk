@@ -2261,6 +2261,7 @@ Options:
 - `--prognaz, -p` - Progressivo nazionale (required unless `--auto-resolve`)
 - `--auto-resolve` / `--denom` - Same as `update`
 - `--data-valid-amm` - Data **fine** validità amministrativa (formato `dd/MM/yyyy`)
+- `--dry-run-cascade` / `--cascade-accessi N` / `--cascade-sezione VALUE` - Verify whether deleting an odonimo cascades to its accessi (see [`--dry-run-cascade` flag](#anncsu-odonimo-delete--dry-run-cascade-flag))
 - Other shared options (`--token-endpoint`, `--server-url`, `--validation/--production`, `--no-verify-ssl`, `--json`, `--raw`, `--dry-run`)
 
 > **Note**: `delete` does NOT accept `--dug`, `--denom-*`, `--codice-comunale`, `--provv-*`, or `--prefettura-*` — Typer rejects them at parse time as unknown options because they have no meaning for a soppressione.
@@ -2374,6 +2375,80 @@ Manual cleanup:
 anncsu odonimo delete --codcom A062 --prognaz 9999999
 rm ~/.anncsu/dryrun_pending.json
 ```
+
+#### `anncsu odonimo delete` — `--dry-run-cascade` flag
+
+Answers a specific question empirically: **does deleting an odonimo automatically delete its linked accessi?** It runs a fully self-cleaning cycle on fictitious data, so real records are never touched.
+
+Cycle (default `--cascade-accessi 3`):
+
+| Step | Operation | API / e-service |
+|---|---|---|
+| 1 | `I` — insert a fictitious odonimo (`TEST SDK ...`, `dug=VIA`) | Odonimi |
+| 2 | `I × N` — attach `N` fictitious accessi, capturing each assigned `progr_civico` | Accessi |
+| 3 | confirm each accesso is present, by `progr_civico` (`accessi_before`) | PA Consultazione (`prognazacc`, single-accesso lookup) |
+| 4 | `S` — delete the odonimo | Odonimi |
+| 5 | recheck each accesso by `progr_civico` — survivors mean no cascade (`accessi_after`) | PA Consultazione (`prognazacc`) |
+| 6 | cleanup — delete any surviving accessi, then (if the odonimo S was refused) retry it | Accessi / Odonimi |
+
+> **Why per-`progr_civico` lookups (not the `elencoaccessiprog` listing)?** The listing endpoint requires an `accparz` *civico* filter and rejects a wildcard (`param accparz invalid`). The single-accesso `prognazacc` lookup is exact: a soppressed accesso responds *"non trovati accessi"*, which is the unambiguous "gone" signal.
+
+> **Empirical finding (UAT, 2026-06-01, comune H501)**: there is **no cascade**. The opposite is true — ANNCSU **refuses** to delete an odonimo that still has accessi, returning error **`320`** (`Controllo operazione: Operazione consentita per odonimi privi di accessi`). So the correct order is: delete **all** accessi first, then delete the odonimo. The dry-run reflects this: the first odonimo `S` is recorded as failed in `odonimo_delete` (the finding), then after deleting the accessi it retries the `S` and records the result in `odonimo_deleted_after_cleanup`.
+
+The verdict is reported in `cascade_confirmed`:
+
+- `true` — accessi existed before and **zero** survive ⇒ deletion cascades to accessi.
+- `false` — accessi **survived** the odonimo deletion (the dry-run cleans up the survivors for you).
+- `null` — could not be determined (e.g. no accesso was confirmed present before the delete — see the consistency caveat below).
+
+Options:
+
+- `--dry-run-cascade` - enable the cascade verification (ignores `--prognaz`/`--auto-resolve`).
+- `--cascade-accessi N` - how many fictitious accessi to attach (default `3`, must be ≥ 1). Reproduces the "odonimo with N accessi" scenario; one accesso is enough to detect cascade, more verify that *all* are removed.
+- `--cascade-sezione VALUE` - **required**. The `sezione_censimento` for the fictitious accessi. It must be a census section that **really exists in `--codcom`** — the server rejects unknown sections with error 100 (`Sezione di censimento: X non presente nel Comune`). The PA API does **not** expose it, so it cannot be auto-discovered. Use the ISTAT `SEZ21_ID` (`PROCOM + SEZ`, e.g. **`580911010001`** for Roma/`H501`).
+
+```bash
+# Roma (H501): 3 fake accessi with a known-valid census section.
+# --no-verify-ssl is normally needed on UAT (self-signed cert chain).
+anncsu odonimo delete --codcom H501 --dry-run-cascade \
+    --cascade-sezione 580911010001 --no-verify-ssl --json
+
+# Reproduce a specific scenario with 5 accessi
+anncsu odonimo delete --codcom H501 --dry-run-cascade --cascade-accessi 5 \
+    --cascade-sezione 580911010001 --no-verify-ssl --json
+```
+
+JSON output:
+
+```json
+{
+  "success": true,
+  "fake_denom": "TEST SDK 20260601150301-3f8a1b2c",
+  "fake_prognaz": "9999995",
+  "requested_accessi": 3,
+  "odonimo_insert": { "success": true, "tipo_operazione": "I", "esito": "0", "...": "..." },
+  "accessi_inserted": 3,
+  "accessi_progr_civici": ["35055664", "35055665", "35055666"],
+  "sezione_censimento": "580911010001",
+  "accessi_before": 3,
+  "odonimo_delete": { "success": false, "tipo_operazione": "S", "messaggio": "...codice 320...", "...": "..." },
+  "odonimo_deleted_after_cleanup": true,
+  "accessi_after": 3,
+  "cascade_confirmed": false,
+  "cleanup_accessi_deleted": 3,
+  "cleanup_failed": false,
+  "pending_log_path": "/Users/me/.anncsu/dryrun_pending.json",
+  "error_message": null
+}
+```
+
+The example above shows the **observed UAT behaviour** (no cascade): the first `odonimo_delete` is refused (error 320), the 3 accessi are cleaned up, and `odonimo_deleted_after_cleanup: true` confirms the odonimo was then removed. On a hypothetical cascade-enabled server you would instead see `odonimo_delete.success: true`, `accessi_after: 0`, `cascade_confirmed: true`, and `odonimo_deleted_after_cleanup: null` (no retry needed).
+
+> **Requires three purposes/e-services**: the cascade dry-run authenticates against the **Odonimi** (`I`/`S`), **Accessi** (`I`/`S`), and **PA Consultazione** (lookups) e-services. All three `PDND_PURPOSE_ID_*` must be configured. The Accessi/Odonimi server URLs are auto-corrected from the PDND voucher audience.
+
+> **PA eventual consistency caveat**: `accessi_before`/`accessi_after` are read from the PA Consultazione API, a separate read store that may lag behind the aggiornamento e-services. Only accessi the PA **confirms present before** the delete are tracked, so PA lag cannot produce a false `cascade_confirmed: true`. If PA had not yet indexed the inserts, `accessi_before` is `0` and the verdict is `null` — re-run after a moment.
+
+> **`success` vs `cascade_confirmed`**: `success` means the verification cycle ran end-to-end and left the environment clean. `cascade_confirmed` is the *finding* — `false` is a perfectly successful run that simply discovered there is no cascade.
 
 #### `anncsu odonimo update/delete` — `--auto-resolve` flag
 

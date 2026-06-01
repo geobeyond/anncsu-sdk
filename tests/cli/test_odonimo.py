@@ -772,6 +772,365 @@ class TestOdonimoDeleteDryRun:
 
 
 # ---------------------------------------------------------------------------
+# --dry-run-cascade (verify whether deleting an odonimo cascades to accessi)
+# ---------------------------------------------------------------------------
+
+
+def _accesso_insert_response(progr_civico: str) -> MagicMock:
+    """Mock a successful accessi I response returning the assigned progr_civico."""
+    resp = MagicMock()
+    resp.esito = "0"
+    resp.id_richiesta = "ACC-REQ"
+    resp.messaggio = "OK"
+    resp.dati = [MagicMock(progr_civico=progr_civico)]
+    resp.model_dump.return_value = {
+        "esito": "0",
+        "dati": [{"progr_civico": progr_civico}],
+    }
+    return resp
+
+
+def _accesso_delete_response() -> MagicMock:
+    """Mock a successful accessi S (cleanup) response."""
+    resp = MagicMock()
+    resp.esito = "0"
+    resp.id_richiesta = "ACC-S"
+    resp.messaggio = "OK"
+    resp.dati = [MagicMock()]
+    resp.model_dump.return_value = {"esito": "0"}
+    return resp
+
+
+def _pa_accesso_present() -> MagicMock:
+    """Mock a PA single-accesso response where the accesso still exists."""
+    resp = MagicMock()
+    resp.data = [MagicMock(prognazacc="X", civico="1")]
+    return resp
+
+
+def _pa_accesso_absent() -> MagicMock:
+    """Mock a PA single-accesso response where the accesso is gone (soppressed)."""
+    resp = MagicMock()
+    resp.data = []
+    return resp
+
+
+class TestOdonimoCascadeDeleteDryRun:
+    """Tests for ``anncsu odonimo delete --dry-run-cascade``.
+
+    Verifies empirically whether deleting an odonimo cascades to its linked
+    accessi. Flow: I (fake odonimo) → I×N (fake accessi) → confirm each via
+    the PA single-accesso endpoint → S (odonimo) → recheck each → cleanup any
+    survivors.
+    """
+
+    def _wire_sdks(self, stack, *, requested: int = 3, survives: bool = False):
+        """Patch the three SDKs used by the cascade dry-run.
+
+        ``survives`` drives cascade detection: ``False`` ⇒ accessi gone after
+        the odonimo S (cascade confirmed); ``True`` ⇒ accessi survive (no
+        cascade, orphans must be cleaned up).
+        Returns ``(odonimo_sdk, accessi_sdk, consult_sdk)``.
+        """
+        _patch_settings_and_auth(stack)
+
+        mock_odo_cls = stack.enter_context(
+            patch("anncsu.cli.commands.odonimo.AnncsuOdonimi")
+        )
+        odo = MagicMock()
+        insert_resp = _create_mock_response(id_richiesta="REQ-I", esito="0")
+        insert_resp.dati = [MagicMock(progr_nazionale="9999995")]
+        delete_resp = _create_mock_response(id_richiesta="REQ-S", esito="0")
+        odo.anncsu.gestione_anncsu_odonimi_pdnd.side_effect = [
+            insert_resp,
+            delete_resp,
+        ]
+        mock_odo_cls.return_value = odo
+
+        mock_acc_cls = stack.enter_context(
+            patch("anncsu.cli.commands.odonimo.AnncsuAccessi")
+        )
+        acc = MagicMock()
+        # N inserts (distinct progr_civico) then, if no cascade, N cleanup S.
+        responses = [_accesso_insert_response(f"C{i}") for i in range(requested)]
+        if survives:
+            responses += [_accesso_delete_response() for _ in range(requested)]
+        acc.anncsu.gestione_anncsu_pdnd.side_effect = responses
+        mock_acc_cls.return_value = acc
+
+        mock_pa_cls = stack.enter_context(
+            patch("anncsu.cli.commands.odonimo.AnncsuConsultazione")
+        )
+        pa = MagicMock()
+        # "before" checks: all present. "after" checks: present iff survives.
+        before = [_pa_accesso_present() for _ in range(requested)]
+        after_state = _pa_accesso_present if survives else _pa_accesso_absent
+        after = [after_state() for _ in range(requested)]
+        pa.queryparam.prognazacc_get_query_param.side_effect = before + after
+        mock_pa_cls.return_value = pa
+
+        return odo, acc, pa
+
+    def test_cascade_confirmed_when_accessi_gone(
+        self, cli_runner: CliRunner, tmp_path: Path, mock_private_key: Path
+    ) -> None:
+        """3 accessi created, 0 remain after odonimo S ⇒ cascade confirmed."""
+        import contextlib
+
+        from anncsu.cli import app
+
+        with cli_runner.isolated_filesystem(temp_dir=tmp_path):
+            Path("private_key.pem").write_text(mock_private_key.read_text())
+            with contextlib.ExitStack() as stack:
+                odo, acc, pa = self._wire_sdks(stack, survives=False)
+
+                result = cli_runner.invoke(
+                    app,
+                    [
+                        "odonimo",
+                        "delete",
+                        "--codcom",
+                        "H501",
+                        "--dry-run-cascade",
+                        "--cascade-sezione",
+                        "580911010001",
+                    ],
+                )
+
+        assert result.exit_code == 0, result.output
+        # odonimo: I + S
+        assert odo.anncsu.gestione_anncsu_odonimi_pdnd.call_count == 2
+        # accessi: 3 inserts, no cleanup (cascade removed them)
+        assert acc.anncsu.gestione_anncsu_pdnd.call_count == 3
+        # PA single-accesso checks: 3 before + 3 after
+        assert pa.queryparam.prognazacc_get_query_param.call_count == 6
+
+    def test_no_cascade_cleans_up_orphaned_accessi(
+        self, cli_runner: CliRunner, tmp_path: Path, mock_private_key: Path
+    ) -> None:
+        """3 accessi still present after odonimo S ⇒ no cascade; orphans deleted."""
+        import contextlib
+        import json as json_lib
+
+        from anncsu.cli import app
+
+        with cli_runner.isolated_filesystem(temp_dir=tmp_path):
+            Path("private_key.pem").write_text(mock_private_key.read_text())
+            with contextlib.ExitStack() as stack:
+                odo, acc, pa = self._wire_sdks(stack, survives=True)
+
+                result = cli_runner.invoke(
+                    app,
+                    [
+                        "odonimo",
+                        "delete",
+                        "--codcom",
+                        "H501",
+                        "--dry-run-cascade",
+                        "--cascade-sezione",
+                        "580911010001",
+                        "--json",
+                    ],
+                )
+
+        assert result.exit_code == 0, result.output
+        # accessi: 3 inserts + 3 cleanup deletes of the survivors
+        assert acc.anncsu.gestione_anncsu_pdnd.call_count == 6
+        data = json_lib.loads(result.output)
+        assert data["cascade_confirmed"] is False
+        assert data["accessi_after"] == 3
+        assert data["cleanup_accessi_deleted"] == 3
+
+    def test_no_cascade_retries_odonimo_delete_after_cleanup(
+        self, cli_runner: CliRunner, tmp_path: Path, mock_private_key: Path
+    ) -> None:
+        """First odonimo S refused (error 320) → cleanup accessi → S retry OK."""
+        import contextlib
+        import json as json_lib
+
+        from anncsu.cli import app
+
+        with cli_runner.isolated_filesystem(temp_dir=tmp_path):
+            Path("private_key.pem").write_text(mock_private_key.read_text())
+            with contextlib.ExitStack() as stack:
+                _patch_settings_and_auth(stack)
+
+                # Odonimo: I ok → first S refused (no esito, no dati) → retry S ok
+                mock_odo_cls = stack.enter_context(
+                    patch("anncsu.cli.commands.odonimo.AnncsuOdonimi")
+                )
+                odo = MagicMock()
+                insert_resp = _create_mock_response(id_richiesta="REQ-I", esito="0")
+                insert_resp.dati = [MagicMock(progr_nazionale="9999995")]
+                refused_resp = _create_mock_response(
+                    id_richiesta=None, esito=None, messaggio="codice 320"
+                )
+                refused_resp.dati = []
+                retry_ok_resp = _create_mock_response(id_richiesta="REQ-S2", esito="0")
+                odo.anncsu.gestione_anncsu_odonimi_pdnd.side_effect = [
+                    insert_resp,
+                    refused_resp,
+                    retry_ok_resp,
+                ]
+                mock_odo_cls.return_value = odo
+
+                # Accessi: 3 inserts + 3 cleanup S
+                mock_acc_cls = stack.enter_context(
+                    patch("anncsu.cli.commands.odonimo.AnncsuAccessi")
+                )
+                acc = MagicMock()
+                acc.anncsu.gestione_anncsu_pdnd.side_effect = [
+                    _accesso_insert_response("C0"),
+                    _accesso_insert_response("C1"),
+                    _accesso_insert_response("C2"),
+                    _accesso_delete_response(),
+                    _accesso_delete_response(),
+                    _accesso_delete_response(),
+                ]
+                mock_acc_cls.return_value = acc
+
+                # PA: 3 present before, 3 still present after (survivors)
+                mock_pa_cls = stack.enter_context(
+                    patch("anncsu.cli.commands.odonimo.AnncsuConsultazione")
+                )
+                pa = MagicMock()
+                pa.queryparam.prognazacc_get_query_param.side_effect = [
+                    _pa_accesso_present(),
+                    _pa_accesso_present(),
+                    _pa_accesso_present(),
+                    _pa_accesso_present(),
+                    _pa_accesso_present(),
+                    _pa_accesso_present(),
+                ]
+                mock_pa_cls.return_value = pa
+
+                result = cli_runner.invoke(
+                    app,
+                    [
+                        "odonimo",
+                        "delete",
+                        "--codcom",
+                        "H501",
+                        "--dry-run-cascade",
+                        "--cascade-sezione",
+                        "580911010001",
+                        "--json",
+                    ],
+                )
+
+        assert result.exit_code == 0, result.output
+        # odonimo: I + first S (refused) + retry S = 3
+        assert odo.anncsu.gestione_anncsu_odonimi_pdnd.call_count == 3
+        data = json_lib.loads(result.output)
+        assert data["cascade_confirmed"] is False
+        assert data["odonimo_delete"]["success"] is False
+        assert data["odonimo_deleted_after_cleanup"] is True
+        assert data["success"] is True
+
+    def test_cascade_requires_sezione(
+        self, cli_runner: CliRunner, tmp_path: Path, mock_private_key: Path
+    ) -> None:
+        """``--dry-run-cascade`` without ``--cascade-sezione`` errors out."""
+        import contextlib
+
+        from anncsu.cli import app
+
+        with cli_runner.isolated_filesystem(temp_dir=tmp_path):
+            Path("private_key.pem").write_text(mock_private_key.read_text())
+            with contextlib.ExitStack() as stack:
+                _patch_settings_and_auth(stack)
+
+                result = cli_runner.invoke(
+                    app,
+                    [
+                        "odonimo",
+                        "delete",
+                        "--codcom",
+                        "H501",
+                        "--dry-run-cascade",
+                    ],
+                )
+
+        assert result.exit_code == 1
+        assert "cascade-sezione" in result.output
+
+    def test_cascade_json_output_reports_finding(
+        self, cli_runner: CliRunner, tmp_path: Path, mock_private_key: Path
+    ) -> None:
+        """JSON output exposes the cascade verdict and before/after counts."""
+        import contextlib
+        import json as json_lib
+
+        from anncsu.cli import app
+
+        with cli_runner.isolated_filesystem(temp_dir=tmp_path):
+            Path("private_key.pem").write_text(mock_private_key.read_text())
+            with contextlib.ExitStack() as stack:
+                self._wire_sdks(stack, survives=False)
+
+                result = cli_runner.invoke(
+                    app,
+                    [
+                        "odonimo",
+                        "delete",
+                        "--codcom",
+                        "H501",
+                        "--dry-run-cascade",
+                        "--cascade-sezione",
+                        "580911010001",
+                        "--json",
+                    ],
+                )
+
+        assert result.exit_code == 0, result.output
+        data = json_lib.loads(result.output)
+        assert data["requested_accessi"] == 3
+        assert data["accessi_inserted"] == 3
+        assert data["accessi_before"] == 3
+        assert data["accessi_after"] == 0
+        assert data["cascade_confirmed"] is True
+        assert data["fake_prognaz"] == "9999995"
+        assert data["sezione_censimento"] == "580911010001"
+        assert data["accessi_progr_civici"] == ["C0", "C1", "C2"]
+
+    def test_cascade_custom_accessi_count(
+        self, cli_runner: CliRunner, tmp_path: Path, mock_private_key: Path
+    ) -> None:
+        """``--cascade-accessi 2`` creates exactly 2 accessi."""
+        import contextlib
+        import json as json_lib
+
+        from anncsu.cli import app
+
+        with cli_runner.isolated_filesystem(temp_dir=tmp_path):
+            Path("private_key.pem").write_text(mock_private_key.read_text())
+            with contextlib.ExitStack() as stack:
+                _, acc, _ = self._wire_sdks(stack, requested=2, survives=False)
+
+                result = cli_runner.invoke(
+                    app,
+                    [
+                        "odonimo",
+                        "delete",
+                        "--codcom",
+                        "H501",
+                        "--dry-run-cascade",
+                        "--cascade-accessi",
+                        "2",
+                        "--cascade-sezione",
+                        "580911010001",
+                        "--json",
+                    ],
+                )
+
+        assert result.exit_code == 0, result.output
+        assert acc.anncsu.gestione_anncsu_pdnd.call_count == 2
+        data = json_lib.loads(result.output)
+        assert data["requested_accessi"] == 2
+        assert data["accessi_inserted"] == 2
+
+
+# ---------------------------------------------------------------------------
 # _build_result — S response Odonimi handling (esito=null asymmetry)
 # ---------------------------------------------------------------------------
 

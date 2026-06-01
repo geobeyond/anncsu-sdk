@@ -26,8 +26,15 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from anncsu.accessi import AnncsuAccessi
+from anncsu.accessi.models import Security as AccessiSecurity
+from anncsu.accessi.models.richiestaoperazione import Accesso
+from anncsu.accessi.models.richiestaoperazione import Richiesta as AccessiRichiesta
+from anncsu.accessi.models.validated import ValidatedAccesso
+from anncsu.cli.commands.accesso import SERVERS as ACCESSI_SERVERS
 from anncsu.cli.commands.constants import _resolve_token_endpoint
 from anncsu.cli.models import (
+    OdonimoCascadeDryRunResult,
     OdonimoDryRunResult,
     OdonimoOperationResult,
     OdonimoStatusResult,
@@ -725,6 +732,358 @@ def _run_delete_dry_run(
     _emit_dry_run_result(result, json_output=json_output)
 
 
+def _accesso_exists(consult_sdk: AnncsuConsultazione, *, prognazacc: str) -> bool:
+    """Return whether an accesso is still present via PA consultation.
+
+    Uses the single-accesso endpoint ``prognazacc`` rather than the
+    ``elencoaccessiprog`` listing: the listing requires a (non-wildcard)
+    ``accparz`` civico filter, whereas a per-``progr_civico`` lookup is exact.
+    A soppressed accesso makes the server respond "non trovati accessi"
+    (raised as an exception) or return empty ``data`` — both mean "gone".
+    """
+    try:
+        response = consult_sdk.queryparam.prognazacc_get_query_param(
+            prognazacc=prognazacc
+        )
+    except Exception:
+        return False
+    return bool(getattr(response, "data", None))
+
+
+def _emit_cascade_result(
+    result: OdonimoCascadeDryRunResult, *, json_output: bool
+) -> None:
+    """Render a cascade dry-run result as JSON or a Rich summary table."""
+    if json_output:
+        print(result.model_dump_json(indent=2))
+        if not result.success:
+            raise typer.Exit(1)
+        return
+
+    if result.cascade_confirmed is True:
+        console.print(
+            "[green]Cascade CONFIRMED[/green] — deleting the odonimo also "
+            "removed all linked accessi.\n"
+        )
+    elif result.cascade_confirmed is False:
+        console.print(
+            "[yellow]NO cascade[/yellow] — accessi survived the odonimo "
+            "deletion (orphans were cleaned up by this dry-run).\n"
+        )
+    else:
+        console.print(
+            "[red]Cascade UNDETERMINED[/red] — the verification could not "
+            "complete"
+            + (f": {result.error_message}" if result.error_message else "")
+            + ".\n"
+        )
+
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("Step", style="cyan")
+    table.add_column("Outcome")
+    table.add_column("Detail")
+    table.add_row(
+        "I (fake odonimo)",
+        "[green]OK[/green]" if result.odonimo_insert.success else "[red]FAIL[/red]",
+        result.fake_prognaz or "—",
+    )
+    table.add_row(
+        "I × accessi",
+        f"{result.accessi_inserted}/{result.requested_accessi}",
+        "fictitious accessi created",
+    )
+    table.add_row(
+        "count before S",
+        "—" if result.accessi_before is None else str(result.accessi_before),
+        "via PA consultation",
+    )
+    delete_ok = result.odonimo_delete is not None and result.odonimo_delete.success
+    table.add_row(
+        "S (odonimo)",
+        "[green]OK[/green]" if delete_ok else "[red]FAIL[/red]",
+        result.odonimo_delete.messaggio or "" if result.odonimo_delete else "",
+    )
+    table.add_row(
+        "count after S",
+        "—" if result.accessi_after is None else str(result.accessi_after),
+        "via PA consultation",
+    )
+    cleanup_label = f"{result.cleanup_accessi_deleted} deleted"
+    if result.cleanup_failed:
+        cleanup_label += " — [yellow]MANUAL CLEANUP NEEDED[/yellow]"
+    table.add_row("cleanup orphans", cleanup_label, "")
+    if result.odonimo_deleted_after_cleanup is not None:
+        table.add_row(
+            "S (odonimo) retry",
+            "[green]OK[/green]"
+            if result.odonimo_deleted_after_cleanup
+            else "[red]FAIL[/red] — [yellow]MANUAL CLEANUP NEEDED[/yellow]",
+            "after deleting accessi",
+        )
+    console.print(table)
+
+    if result.fake_denom:
+        console.print(f"\n[dim]Fake denomination:[/dim] {result.fake_denom}")
+    if result.sezione_censimento:
+        console.print(f"[dim]Sezione censimento:[/dim] {result.sezione_censimento}")
+    if result.accessi_progr_civici:
+        console.print(
+            f"[dim]Accessi progr_civico:[/dim] {', '.join(result.accessi_progr_civici)}"
+        )
+    if result.pending_log_path:
+        console.print(f"[dim]Pending log:[/dim] {result.pending_log_path}")
+
+    if not result.success:
+        raise typer.Exit(1)
+
+
+def _run_cascade_delete_dry_run(
+    *,
+    codcom: str,
+    num_accessi: int,
+    sezione_censimento: str,
+    token_endpoint: str,
+    server_url: str,
+    accessi_server_url: str,
+    verify_ssl: bool,
+    raw_output: bool,
+    json_output: bool,
+) -> None:
+    """Verify whether deleting an odonimo cascades to its linked accessi.
+
+    Self-cleaning cycle on fictitious data:
+    I (fake odonimo) → I×N (fake accessi) → confirm each via PA → S (odonimo)
+    → recheck each via PA → cleanup any survivors → ensure odonimo deleted.
+
+    ``sezione_censimento`` must be a census section that really exists in
+    ``codcom`` (the server rejects unknown sections with error 100); the PA
+    consultation does not expose it, so the caller must supply a known value.
+    """
+    odo_sdk, _ = _get_sdk(
+        token_endpoint=token_endpoint,
+        server_url=server_url,
+        verify_ssl=verify_ssl,
+        modi_audience=server_url,
+    )
+
+    # Step 1: insert a fictitious odonimo (flag_delibera="2" → no delibera
+    # data required; mirrors the other odonimo dry-runs).
+    fake_denom = _generate_fake_denom()
+    insert_richiesta = Richiesta(
+        codcom=codcom,
+        tipo_operazione="I",
+        dug="VIA",
+        denom_delibera=fake_denom,
+        provvedimento=Provvedimento(flag_delibera="2"),
+    )
+    try:
+        ValidatedOdonimo.model_validate(insert_richiesta.model_dump(exclude_unset=True))
+    except Exception as e:
+        error_console.print(f"[red]Validation error (fake odonimo I):[/red] {e}")
+        raise typer.Exit(1) from None
+
+    try:
+        insert_response = odo_sdk.anncsu.gestione_anncsu_odonimi_pdnd(
+            richiesta=insert_richiesta
+        )
+    except Exception as e:
+        error_console.print(f"[red]Error:[/red] Fake odonimo insert failed: {e}")
+        raise typer.Exit(1) from None
+
+    if raw_output:
+        _print_raw(insert_response, "Raw odonimo insert response")
+
+    odonimo_insert = _build_result(insert_response, "I")
+    fake_prognaz = _extract_progr_nazionale_from_response(insert_response)
+
+    if not odonimo_insert.success or not fake_prognaz:
+        result = OdonimoCascadeDryRunResult(
+            success=False,
+            fake_denom=fake_denom,
+            requested_accessi=num_accessi,
+            odonimo_insert=odonimo_insert,
+            error_message=(
+                "Fake odonimo insert did not return a progr_nazionale."
+                if odonimo_insert.success
+                else (odonimo_insert.messaggio or "Fake odonimo insert failed")
+            ),
+        )
+        _emit_cascade_result(result, json_output=json_output)
+        return
+
+    pending_log_path = _write_pending_log(
+        tipo_operazione="cascade_I_accessi_then_S",
+        payload={
+            "codcom": codcom,
+            "fake_prognaz": fake_prognaz,
+            "fake_denom": fake_denom,
+            "num_accessi": num_accessi,
+            "sezione_censimento": sezione_censimento,
+        },
+        note=(
+            "Cascade dry-run: created a fake odonimo and will attach fake "
+            "accessi, then delete the odonimo. If the CLI crashed, delete "
+            "any accessi under fake_prognaz, then delete the odonimo manually."
+        ),
+    )
+    if not json_output:
+        console.print(f"[dim]Pending log written to {pending_log_path}[/dim]")
+
+    # Step 2: attach N fictitious accessi to the fake odonimo, capturing the
+    # progr_civico the server assigns to each (returned in the I response).
+    accessi_sdk, _ = _get_accessi_sdk(
+        token_endpoint=token_endpoint,
+        server_url=accessi_server_url,
+        verify_ssl=verify_ssl,
+        modi_audience=accessi_server_url,
+    )
+    created_progr_civici: list[str] = []
+    accessi_error: str | None = None
+    for i in range(num_accessi):
+        accesso = Accesso(
+            operazione_civico="I",
+            numero=str(i + 1),
+            sezione_censimento=sezione_censimento,
+        )
+        try:
+            ValidatedAccesso.model_validate(accesso.model_dump(exclude_unset=True))
+        except Exception as e:
+            accessi_error = f"Accesso validation error: {e}"
+            break
+        richiesta = AccessiRichiesta(
+            codcom=codcom, progr_nazionale=fake_prognaz, accesso=accesso
+        )
+        try:
+            acc_response = accessi_sdk.anncsu.gestione_anncsu_pdnd(richiesta=richiesta)
+            if raw_output:
+                _print_raw(acc_response, f"Raw accesso insert #{i + 1}")
+            if getattr(acc_response, "esito", None) == "0":
+                dati = getattr(acc_response, "dati", None) or []
+                progr_civico = getattr(dati[0], "progr_civico", None) if dati else None
+                if progr_civico:
+                    created_progr_civici.append(str(progr_civico))
+            else:
+                accessi_error = (
+                    getattr(acc_response, "messaggio", None) or "Accesso insert failed"
+                )
+                break
+        except Exception as e:
+            accessi_error = f"Accesso insert exception: {e}"
+            break
+
+    accessi_inserted = len(created_progr_civici)
+
+    # Step 3: confirm via PA (per progr_civico) which accessi are present
+    # BEFORE deleting the odonimo. Only PA-confirmed accessi are tracked, so
+    # PA's eventual consistency cannot produce a false "cascade" verdict.
+    consult_sdk = _get_consult_sdk(token_endpoint, verify_ssl)
+    present_before = [
+        pc for pc in created_progr_civici if _accesso_exists(consult_sdk, prognazacc=pc)
+    ]
+    accessi_before = len(present_before)
+
+    # Step 4: delete (soppressione) the odonimo.
+    delete_richiesta = Richiesta(
+        codcom=codcom, tipo_operazione="S", progr_nazionale=fake_prognaz
+    )
+    try:
+        delete_response = odo_sdk.anncsu.gestione_anncsu_odonimi_pdnd(
+            richiesta=delete_richiesta
+        )
+        if raw_output:
+            _print_raw(delete_response, "Raw odonimo delete (S) response")
+        odonimo_delete = _build_result(delete_response, "S")
+    except Exception as e:
+        odonimo_delete = OdonimoOperationResult(
+            success=False,
+            tipo_operazione="S",
+            esito=None,
+            messaggio=f"Odonimo delete exception: {e}",
+        )
+
+    # Step 5: recheck the same accessi AFTER the odonimo deletion — survivors
+    # mean no cascade.
+    survivors = [
+        pc for pc in present_before if _accesso_exists(consult_sdk, prognazacc=pc)
+    ]
+    accessi_after = len(survivors)
+
+    # The empirical verdict: accessi existed and none survive ⇒ cascade.
+    cascade_confirmed: bool | None
+    if accessi_before > 0:
+        cascade_confirmed = accessi_after == 0
+    else:
+        cascade_confirmed = None
+
+    # Step 6: clean up any survivors (no cascade ⇒ delete the orphans).
+    cleanup_accessi_deleted = 0
+    cleanup_failed = False
+    for progr_civico in survivors:
+        cleanup_accesso = Accesso(operazione_civico="S", progr_civico=progr_civico)
+        cleanup_richiesta = AccessiRichiesta(
+            codcom=codcom, progr_nazionale=fake_prognaz, accesso=cleanup_accesso
+        )
+        try:
+            cleanup_response = accessi_sdk.anncsu.gestione_anncsu_pdnd(
+                richiesta=cleanup_richiesta
+            )
+            if getattr(cleanup_response, "esito", None) == "0":
+                cleanup_accessi_deleted += 1
+            else:
+                cleanup_failed = True
+        except Exception:
+            cleanup_failed = True
+
+    # If the first odonimo S was refused (ANNCSU error 320: "Operazione
+    # consentita per odonimi privi di accessi" — there is NO cascade, the
+    # server rejects deleting an odonimo that still has accessi), retry it
+    # now that the survivors are gone, and TRACK the outcome so the dry-run
+    # can prove it left the environment clean.
+    odonimo_deleted_after_cleanup: bool | None = None
+    if not odonimo_delete.success:
+        try:
+            retry_response = odo_sdk.anncsu.gestione_anncsu_odonimi_pdnd(
+                richiesta=delete_richiesta
+            )
+            if raw_output:
+                _print_raw(
+                    retry_response, "Raw odonimo delete retry (after accessi cleanup)"
+                )
+            odonimo_deleted_after_cleanup = _build_result(retry_response, "S").success
+        except Exception:
+            odonimo_deleted_after_cleanup = False
+
+    odonimo_is_gone = odonimo_delete.success or odonimo_deleted_after_cleanup is True
+    success = (
+        odonimo_insert.success
+        and accessi_error is None
+        and accessi_inserted == num_accessi
+        and not cleanup_failed
+        and odonimo_is_gone
+    )
+
+    result = OdonimoCascadeDryRunResult(
+        success=success,
+        fake_denom=fake_denom,
+        fake_prognaz=fake_prognaz,
+        requested_accessi=num_accessi,
+        odonimo_insert=odonimo_insert,
+        accessi_inserted=accessi_inserted,
+        accessi_progr_civici=created_progr_civici,
+        sezione_censimento=sezione_censimento,
+        accessi_before=accessi_before,
+        odonimo_delete=odonimo_delete,
+        odonimo_deleted_after_cleanup=odonimo_deleted_after_cleanup,
+        accessi_after=accessi_after,
+        cascade_confirmed=cascade_confirmed,
+        cleanup_accessi_deleted=cleanup_accessi_deleted,
+        cleanup_failed=cleanup_failed,
+        pending_log_path=pending_log_path,
+        error_message=accessi_error,
+    )
+    _emit_cascade_result(result, json_output=json_output)
+
+
 def _emergency_cleanup(sdk: AnncsuOdonimi, *, codcom: str, fake_prognaz: str) -> None:
     """Best-effort cleanup of a fake odonimo when later steps fail.
 
@@ -741,6 +1100,121 @@ def _emergency_cleanup(sdk: AnncsuOdonimi, *, codcom: str, fake_prognaz: str) ->
         sdk.anncsu.gestione_anncsu_odonimi_pdnd(richiesta=cleanup_richiesta)
     except Exception:
         pass
+
+
+def _register_modi_hook_if_configured(
+    hooks: SDKHooks,
+    settings: ClientAssertionSettings,
+    modi_audience: str,
+) -> None:
+    """Register the ModI pre-request hook on ``hooks`` (best-effort).
+
+    Shared by the Odonimi and Accessi SDK builders. Failures are reported
+    as a warning and swallowed — the operation continues without ModI
+    headers (the API call may then fail, which surfaces a clearer error).
+    """
+    try:
+        if settings.has_e_service_key:
+            modi_kid = settings.modi_kid
+            modi_private_key: bytes | None = None
+            if settings.modi_private_key:
+                modi_private_key = settings.modi_private_key.encode("utf-8")
+            elif settings.modi_key_path:
+                with open(settings.modi_key_path, "rb") as f:
+                    modi_private_key = f.read()
+        else:
+            if not getattr(settings, "modi_kid", None):
+                error_console.print(
+                    "[yellow]Warning:[/yellow] PDND_MODI_KID not configured. "
+                    "Using voucher key for ModI signing. Set PDND_MODI_KID "
+                    "and PDND_MODI_PRIVATE_KEY for a dedicated ModI signing "
+                    "key (required by GovWay in production)."
+                )
+            modi_kid = settings.kid
+            modi_private_key = None
+            if settings.private_key:
+                modi_private_key = settings.private_key.encode("utf-8")
+            elif settings.key_path:
+                with open(settings.key_path, "rb") as f:
+                    modi_private_key = f.read()
+
+        if modi_private_key:
+            modi_config = ModIConfig(
+                private_key=modi_private_key,
+                kid=modi_kid,
+                issuer=settings.issuer,
+                audience=modi_audience,
+            )
+            audit_context: AuditContext | None = None
+            if settings.has_modi_audit_context:
+                audit_context = settings.get_modi_audit_context()
+            register_modi_hook(
+                hooks,
+                config=modi_config,
+                audit_context=audit_context,
+            )
+    except Exception as e:
+        error_console.print(f"[yellow]Warning:[/yellow] ModI hook setup failed: {e}")
+        error_console.print("Continuing without ModI headers (API calls may fail).")
+
+
+def _get_accessi_sdk(
+    token_endpoint: str,
+    server_url: str | None = None,
+    verify_ssl: bool = True,
+    modi_audience: str | None = None,
+) -> tuple[AnncsuAccessi, PDNDAuthManager]:
+    """Create an authenticated AnncsuAccessi SDK with ModI hook support.
+
+    Used by ``delete --dry-run-cascade`` to insert/delete fictitious accessi
+    linked to the fictitious odonimo. Mirrors ``_get_sdk`` but authenticates
+    against ``APIType.ACCESSI`` and builds the Accessi e-service client.
+    """
+    try:
+        settings = ClientAssertionSettings()
+    except Exception as e:
+        error_console.print(f"[red]Error:[/red] Configuration not found: {e}")
+        raise typer.Exit(1) from None
+
+    try:
+        manager = PDNDAuthManager(
+            api_type=APIType.ACCESSI,
+            settings=settings,
+            token_endpoint=token_endpoint,
+            session_persistence=True,
+            config_dir=get_config_dir(),
+        )
+        access_token = manager.get_access_token()
+    except AudienceMismatchError as e:
+        error_console.print(f"[red]Configuration Error:[/red]\n{e}")
+        raise typer.Exit(1) from None
+    except Exception as e:
+        error_console.print(f"[red]Error:[/red] Accessi authentication failed: {e}")
+        raise typer.Exit(1) from None
+
+    voucher_aud = extract_voucher_audience(access_token)
+    if voucher_aud and server_url and voucher_aud.rstrip("/") != server_url.rstrip("/"):
+        server_url = voucher_aud
+        if modi_audience:
+            modi_audience = voucher_aud
+
+    def security_provider() -> AccessiSecurity:
+        return AccessiSecurity(bearer_auth=manager.get_access_token())
+
+    client = httpx.Client(verify=verify_ssl, timeout=httpx.Timeout(30.0))
+
+    hooks = SDKHooks()
+    if modi_audience:
+        _register_modi_hook_if_configured(hooks, settings, modi_audience)
+
+    sdk = AnncsuAccessi(
+        security=security_provider,
+        server_url=server_url,
+        client=client,
+        hooks=hooks,
+        timeout_ms=30000,
+    )
+    return sdk, manager
 
 
 def _get_sdk(
@@ -808,51 +1282,7 @@ def _get_sdk(
     hooks = SDKHooks()
 
     if modi_audience:
-        try:
-            if settings.has_e_service_key:
-                modi_kid = settings.modi_kid
-                modi_private_key: bytes | None = None
-                if settings.modi_private_key:
-                    modi_private_key = settings.modi_private_key.encode("utf-8")
-                elif settings.modi_key_path:
-                    with open(settings.modi_key_path, "rb") as f:
-                        modi_private_key = f.read()
-            else:
-                if not getattr(settings, "modi_kid", None):
-                    error_console.print(
-                        "[yellow]Warning:[/yellow] PDND_MODI_KID not configured. "
-                        "Using voucher key for ModI signing. Set PDND_MODI_KID "
-                        "and PDND_MODI_PRIVATE_KEY for a dedicated ModI signing "
-                        "key (required by GovWay in production)."
-                    )
-                modi_kid = settings.kid
-                modi_private_key = None
-                if settings.private_key:
-                    modi_private_key = settings.private_key.encode("utf-8")
-                elif settings.key_path:
-                    with open(settings.key_path, "rb") as f:
-                        modi_private_key = f.read()
-
-            if modi_private_key:
-                modi_config = ModIConfig(
-                    private_key=modi_private_key,
-                    kid=modi_kid,
-                    issuer=settings.issuer,
-                    audience=modi_audience,
-                )
-                audit_context: AuditContext | None = None
-                if settings.has_modi_audit_context:
-                    audit_context = settings.get_modi_audit_context()
-                register_modi_hook(
-                    hooks,
-                    config=modi_config,
-                    audit_context=audit_context,
-                )
-        except Exception as e:
-            error_console.print(
-                f"[yellow]Warning:[/yellow] ModI hook setup failed: {e}"
-            )
-            error_console.print("Continuing without ModI headers (API calls may fail).")
+        _register_modi_hook_if_configured(hooks, settings, modi_audience)
 
     # UAT odonimi endpoint is slow — raise SDK timeout to 30s to avoid
     # client-side timeouts that leave orphaned dry-run records (server
@@ -1531,6 +1961,38 @@ def delete(
             ),
         ),
     ] = False,
+    dry_run_cascade: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run-cascade",
+            help=(
+                "Verify whether deleting an odonimo cascades to its accessi. "
+                "Creates a fake odonimo + N fake accessi (--cascade-accessi), "
+                "counts them via PA, deletes the odonimo, recounts, and cleans "
+                "up. ``--prognaz``/``--auto-resolve`` are ignored."
+            ),
+        ),
+    ] = False,
+    cascade_accessi: Annotated[
+        int,
+        typer.Option(
+            "--cascade-accessi",
+            help="Number of fictitious accessi to attach in --dry-run-cascade.",
+        ),
+    ] = 3,
+    cascade_sezione: Annotated[
+        str | None,
+        typer.Option(
+            "--cascade-sezione",
+            help=(
+                "Census section (sezione_censimento) for the fictitious "
+                "accessi in --dry-run-cascade. Required: must be a value that "
+                "really exists in --codcom (ISTAT SEZ21_ID, e.g. 580911010001 "
+                "for Roma/H501). The PA API does not expose it, so it cannot "
+                "be auto-discovered."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Delete (soppressione) an odonimo (``tipo_operazione='S'``).
 
@@ -1540,6 +2002,41 @@ def delete(
     """
     token_endpoint = _resolve_token_endpoint(token_endpoint, validation_env)
     resolved_url = _resolve_server_url(server_url, validation_env)
+
+    if dry_run_cascade:
+        if cascade_accessi < 1:
+            error_console.print(
+                "[red]Error:[/red] --cascade-accessi must be at least 1."
+            )
+            raise typer.Exit(1)
+        if not cascade_sezione:
+            error_console.print(
+                "[red]Error:[/red] --cascade-sezione is required for "
+                "--dry-run-cascade: it must be a census section that exists "
+                "in --codcom (ISTAT SEZ21_ID, e.g. 580911010001 for Roma/H501)."
+            )
+            raise typer.Exit(1)
+        if prognaz or auto_resolve:
+            error_console.print(
+                "[yellow]Warning:[/yellow] --prognaz/--auto-resolve are "
+                "ignored in --dry-run-cascade mode (a fictitious odonimo with "
+                "fictitious accessi is generated and deleted)."
+            )
+        accessi_server_url = ACCESSI_SERVERS[
+            "validation" if validation_env else "production"
+        ]
+        _run_cascade_delete_dry_run(
+            codcom=codcom,
+            num_accessi=cascade_accessi,
+            sezione_censimento=cascade_sezione,
+            token_endpoint=token_endpoint,
+            server_url=resolved_url,
+            accessi_server_url=accessi_server_url,
+            verify_ssl=not no_verify_ssl,
+            raw_output=raw_output,
+            json_output=json_output,
+        )
+        return
 
     if dry_run:
         if prognaz or auto_resolve:

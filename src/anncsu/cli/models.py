@@ -317,6 +317,110 @@ class OdonimoDryRunResult(BaseModel):
     )
 
 
+class OdonimoCascadeDryRunResult(BaseModel):
+    """Result of ``odonimo delete --dry-run-cascade``.
+
+    Empirically verifies whether deleting an odonimo cascades to its linked
+    accessi, without touching real data. The cycle is fully self-cleaning:
+
+    1. ``I`` — insert a fictitious odonimo (``TEST SDK ...``)
+    2. ``I × N`` — insert ``requested_accessi`` fictitious accessi linked to it
+    3. count linked accessi via PA consultation (``accessi_before``)
+    4. ``S`` — delete the odonimo
+    5. recount linked accessi via PA consultation (``accessi_after``)
+    6. cleanup — delete any accessi still present, then ensure the odonimo
+       itself is gone
+
+    ``cascade_confirmed`` is the empirical answer to the question "does
+    deleting an odonimo also delete its accessi?": ``True`` when accessi
+    existed before and zero remain after, ``False`` when orphans survive,
+    ``None`` when it could not be determined (e.g. an earlier step failed).
+    """
+
+    success: bool = Field(
+        description="Whether the verification cycle ran end-to-end and cleaned up"
+    )
+    fake_denom: str = Field(
+        description="The fictitious odonimo denomination used (e.g. 'TEST SDK ...')"
+    )
+    fake_prognaz: str | None = Field(
+        default=None,
+        description="progr_nazionale assigned to the fictitious odonimo (after I)",
+    )
+    requested_accessi: int = Field(
+        description="Number of fictitious accessi requested (--cascade-accessi)"
+    )
+    odonimo_insert: OdonimoOperationResult = Field(
+        description="Result of the odonimo I step"
+    )
+    accessi_inserted: int = Field(
+        default=0, description="How many accessi were successfully inserted"
+    )
+    accessi_progr_civici: list[str] = Field(
+        default_factory=list,
+        description="progr_civico assigned to each inserted accesso (for cleanup)",
+    )
+    sezione_censimento: str | None = Field(
+        default=None,
+        description="Census section used for the fictitious accessi (--cascade-sezione)",
+    )
+    accessi_before: int | None = Field(
+        default=None,
+        description=(
+            "Inserted accessi confirmed present via PA consultation BEFORE "
+            "odonimo S (each checked individually by progr_civico)"
+        ),
+    )
+    odonimo_delete: OdonimoOperationResult | None = Field(
+        default=None,
+        description=(
+            "Result of the FIRST odonimo S attempt. ANNCSU refuses to delete "
+            "an odonimo that still has accessi (error 320), so on a no-cascade "
+            "server this records that refusal — the key finding."
+        ),
+    )
+    odonimo_deleted_after_cleanup: bool | None = Field(
+        default=None,
+        description=(
+            "When the first S was refused, whether the retry AFTER deleting the "
+            "accessi succeeded (so the fictitious odonimo is actually gone). "
+            "None when no retry was needed (first S already succeeded)."
+        ),
+    )
+    accessi_after: int | None = Field(
+        default=None,
+        description=(
+            "Of the accessi present before, how many still exist via PA "
+            "consultation AFTER odonimo S (the cascade survivors)"
+        ),
+    )
+    cascade_confirmed: bool | None = Field(
+        default=None,
+        description=(
+            "True if deleting the odonimo also removed all linked accessi; "
+            "False if orphans survived; None if it could not be determined."
+        ),
+    )
+    cleanup_accessi_deleted: int = Field(
+        default=0,
+        description="How many orphaned accessi the cleanup step deleted",
+    )
+    cleanup_failed: bool = Field(
+        default=False,
+        description="Whether cleanup left residue requiring manual intervention",
+    )
+    pending_log_path: str | None = Field(
+        default=None,
+        description=(
+            "Path to ~/.anncsu/dryrun_pending.json written before destructive "
+            "steps. If the CLI crashes, it contains the data for manual cleanup."
+        ),
+    )
+    error_message: str | None = Field(
+        default=None, description="Error message if the cycle failed"
+    )
+
+
 class DryRunResult(BaseModel):
     """Result of a coordinate dry-run operation."""
 
