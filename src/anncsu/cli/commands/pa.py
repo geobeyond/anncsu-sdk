@@ -360,13 +360,28 @@ def accessi(
         ),
     ],
     denom: Annotated[
-        str,
+        str | None,
         typer.Option(
             "--denom",
             "-d",
-            help="Denominazione anche parziale dell'odonimo - base64 encoded.",
+            help=(
+                "Denominazione anche parziale dell'odonimo - base64 encoded. "
+                "Mutually exclusive with --prognaz."
+            ),
         ),
-    ],
+    ] = None,
+    prognaz: Annotated[
+        str | None,
+        typer.Option(
+            "--prognaz",
+            "-p",
+            help=(
+                "Progressivo nazionale dell'odonimo. Use it to target a "
+                "specific odonimo directly (skips the --denom search and its "
+                "ambiguity). Mutually exclusive with --denom."
+            ),
+        ),
+    ] = None,
     accparz: Annotated[
         str | None,
         typer.Option(
@@ -419,12 +434,16 @@ def accessi(
 ) -> None:
     """List access points for a street.
 
-    First searches for the street (odonimo) by municipality code and name,
-    then lists all access points (civici) for that street.
+    Resolve the street (odonimo) either by ``--denom`` (municipality code +
+    base64 name) or directly by ``--prognaz``, then list its access points
+    (civici). ``--denom`` is a substring search: when it matches more than one
+    odonimo the command stops and lists the candidates so you can re-run with
+    ``--prognaz`` (it never silently picks the first match).
 
     Example:
         anncsu pa accessi --codcom I501 --denom "VklBIFJPTUE="
         anncsu pa accessi --codcom I501 --denom "VklBIFJPTUE=" --accparz "1"
+        anncsu pa accessi --codcom H501 --prognaz 920585 --accparz 95
     """
     if server_url is None:
         server_url = (
@@ -440,43 +459,92 @@ def accessi(
         verify_ssl=not no_verify_ssl,
     )
 
-    # Step 1: Find odonimo prognaz
-    try:
-        odonimo_response = sdk.queryparam.elencoodonimiprog_get_query_param(
-            codcom=codcom,
-            denomparz=denom,
-        )
-    except Exception as e:
-        error_console.print(f"[red]Error:[/red] Odonimo search failed: {e}")
-        raise typer.Exit(1) from None
-
-    if raw_output:
-        _print_raw(odonimo_response, "Raw odonimo response")
-
-    if not odonimo_response.data:
+    # Step 1: Resolve the odonimo — either directly via --prognaz or by
+    # searching --denom. The denom search can match multiple odonimi (it is a
+    # substring match), so we never silently pick the first: we error and ask
+    # the user to disambiguate with --prognaz.
+    if prognaz and denom:
         error_console.print(
-            f"[red]No results:[/red] No odonimo found for codcom={codcom}, denom={denom}"
+            "[red]Error:[/red] --denom and --prognaz are mutually exclusive."
         )
-        raise typer.Exit(1) from None
+        raise typer.Exit(1)
 
-    odonimo_data = odonimo_response.data[0]
-    prognaz = odonimo_data.prognaz
+    if prognaz:
+        try:
+            odonimo_response = sdk.queryparam.prognazarea_get_query_param(
+                prognaz=prognaz,
+            )
+        except Exception as e:
+            error_console.print(f"[red]Error:[/red] Odonimo lookup failed: {e}")
+            raise typer.Exit(1) from None
 
-    if not prognaz:
+        if raw_output:
+            _print_raw(odonimo_response, "Raw odonimo response")
+
+        if not odonimo_response.data:
+            error_console.print(
+                f"[red]No results:[/red] No odonimo found for prognaz={prognaz}"
+            )
+            raise typer.Exit(1) from None
+
+        odonimo_data = odonimo_response.data[0]
+        resolved_prognaz = prognaz
+    elif denom:
+        try:
+            odonimo_response = sdk.queryparam.elencoodonimiprog_get_query_param(
+                codcom=codcom,
+                denomparz=denom,
+            )
+        except Exception as e:
+            error_console.print(f"[red]Error:[/red] Odonimo search failed: {e}")
+            raise typer.Exit(1) from None
+
+        if raw_output:
+            _print_raw(odonimo_response, "Raw odonimo response")
+
+        if not odonimo_response.data:
+            error_console.print(
+                f"[red]No results:[/red] No odonimo found for codcom={codcom}, "
+                f"denom={denom}"
+            )
+            raise typer.Exit(1) from None
+
+        matches = list(odonimo_response.data)
+        if len(matches) > 1:
+            error_console.print(
+                f"[red]Ambiguous:[/red] {len(matches)} odonimi match codcom="
+                f"{codcom}, denom={denom}. Re-run with --prognaz to pick one:"
+            )
+            for m in matches:
+                error_console.print(
+                    f"  --prognaz {m.prognaz}  →  {m.dug or ''} {m.denomuff or ''}"
+                )
+            raise typer.Exit(1)
+
+        odonimo_data = matches[0]
+        resolved_prognaz = odonimo_data.prognaz
+    else:
+        error_console.print(
+            "[red]Error:[/red] Provide --denom (street name, base64) or "
+            "--prognaz (national progressive of the odonimo)."
+        )
+        raise typer.Exit(1)
+
+    if not resolved_prognaz:
         error_console.print("[red]Error:[/red] Odonimo found but no prognaz available")
         raise typer.Exit(1) from None
 
     if not json_output:
         console.print(
             f"[bold]Street:[/bold] {odonimo_data.dug} {odonimo_data.denomuff} "
-            f"(prognaz={prognaz})\n"
+            f"(prognaz={resolved_prognaz})\n"
         )
 
     # Step 2: List accessi for this odonimo
     search_accparz = accparz if accparz else "1"
     try:
         accessi_response = sdk.queryparam.elencoaccessiprog_get_query_param(
-            prognaz=prognaz,
+            prognaz=resolved_prognaz,
             accparz=search_accparz,
         )
     except Exception as e:
@@ -488,7 +556,8 @@ def accessi(
 
     if not accessi_response.data:
         error_console.print(
-            f"[red]No results:[/red] No access points found for prognaz={prognaz}"
+            f"[red]No results:[/red] No access points found for "
+            f"prognaz={resolved_prognaz}"
         )
         raise typer.Exit(1) from None
 

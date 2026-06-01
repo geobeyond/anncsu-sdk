@@ -178,15 +178,35 @@ if result.res == "OK":
 else:
     print(f"Odonimo non trovato")
 
-# 5. Elenco accessi per l'odonimo
+# 5. Elenco accessi per l'odonimo.
+# NB: ``accparz`` è OBBLIGATORIO (match per sottostringa sul civico) — non
+# esiste un valore "tutti". Vedi la nota sotto.
 accessi = sdk.queryparam.elenco_accessi_get_query_param(
     codcom=codcom,
     denom=denom,
+    accparz="1",  # es. tutti i civici che contengono "1"
 )
 
 for accesso in accessi.data:
-    print(f"Civico: {accesso.civico}, Coordinate: ({accesso.coord_x}, {accesso.coord_y})")
+    # L'esponente torna nel campo dedicato ``esp`` (civico e esponente sono
+    # separati): es. civico="95", esp="A" → 95/A.
+    print(
+        f"Civico: {accesso.civico}{('/' + accesso.esp) if accesso.esp else ''}, "
+        f"Coordinate: ({accesso.coord_x}, {accesso.coord_y})"
+    )
 ```
+
+> **`accparz` è obbligatorio ed è un match per sottostringa** (non prefisso): `accparz="9"`
+> ritorna `9, 19, 29, …, 91, 97` (tutti i civici che *contengono* "9"). **Non esiste un
+> wildcard "elenca tutti"**: per ottenere l'elenco completo bisogna unire più valori di
+> `accparz` (es. `"0"`–`"9"`) e deduplicare per `prognazacc`. Lo stesso vale per
+> `elenco_accessi_prog` (per `prognaz`).
+>
+> **Esponente / specificità**: un accesso è identificato da `civico` (numero) + `esp`
+> (esponente) + `specif`. Più accessi possono condividere lo stesso `civico` con `esp`
+> diversi → `prognazacc` distinti, **tutti** restituiti dalla stessa `accparz`. Es. su
+> VIA TARANTO (H501, prognaz `920585`) il civico `95` ritorna tre accessi: `95`, `95/A`,
+> `95/D`.
 
 ## Gestione Errori
 

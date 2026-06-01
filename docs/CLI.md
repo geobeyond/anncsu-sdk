@@ -1789,14 +1789,17 @@ anncsu pa accesso --prognazacc 28586543 --raw
 
 #### `anncsu pa accessi`
 
-List access points (civici) for a street. First searches for the street by municipality code and partial name, then lists all access points.
+List access points (civici) for a street. Resolve the street either by `--denom` (municipality code + base64 partial name) **or** directly by `--prognaz`, then list its access points.
 
 ```bash
-# List all access points for a street
+# List access points by street name (base64)
 anncsu pa accessi --codcom I501 --denom "VklBIFJPTUE="
 
 # Filter by partial civic number
 anncsu pa accessi --codcom I501 --denom "VklBIFJPTUE=" --accparz "1"
+
+# Target a specific odonimo directly by its national progressive
+anncsu pa accessi --codcom H501 --prognaz 920585 --accparz 95
 
 # Production with JSON output
 anncsu pa accessi --codcom I501 --denom "VklBIFJPTUE=" --production --json
@@ -1807,7 +1810,8 @@ anncsu pa accessi --codcom I501 --denom "VklBIFJPTUE=" --production --json
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--codcom`, `-c` | Yes | Codice Belfiore del comune |
-| `--denom`, `-d` | Yes | Denominazione parziale dell'odonimo - base64 encoded |
+| `--denom`, `-d` | One of denom/prognaz | Denominazione parziale dell'odonimo - base64 encoded |
+| `--prognaz`, `-p` | One of denom/prognaz | Progressivo nazionale dell'odonimo (targets it directly) |
 | `--accparz`, `-a` | No | Valore parziale del civico (default: "1") |
 | `--validation/--production` | No | Environment (default: validation) |
 | `--token-endpoint`, `-e` | No | PDND token endpoint URL |
@@ -1815,6 +1819,10 @@ anncsu pa accessi --codcom I501 --denom "VklBIFJPTUE=" --production --json
 | `--no-verify-ssl` | No | Disable SSL verification |
 | `--json` | No | Output as JSON |
 | `--raw` | No | Print raw API responses to stderr (odonimo + accessi) |
+
+> **`--denom` is a substring search and can be ambiguous.** E.g. `--denom` for "taranto" matches both `VIA NINO TARANTO` and `VIA TARANTO`. When more than one odonimo matches, the command does **not** silently pick the first: it lists every candidate with its `--prognaz` and exits, so you can re-run targeting the exact one. `--denom` and `--prognaz` are mutually exclusive; provide exactly one.
+
+> **`--accparz` is a substring match on the civico** (not a prefix): `--accparz 9` returns 9, 19, 29, … 91, 97. To list *all* accessi you currently have to union several `accparz` values (e.g. `0`–`9`) and de-duplicate by `prognazacc` — the API has no "list all" wildcard. The esponente comes back in the `Esp.` column: civico 95 may yield three rows (95, 95/A, 95/D), each a distinct `prognazacc`.
 
 **Output columns:** Prog. Naz. Acc., Civico, Esp., Specif., Metrico, Coord X, Coord Y, Quota, Metodo
 

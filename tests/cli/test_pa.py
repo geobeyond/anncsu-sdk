@@ -457,6 +457,78 @@ class TestAccessi:
             accparz="1",
         )
 
+    def test_accessi_ambiguous_denom_lists_matches_and_errors(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """Multiple odonimi for a partial denom → error listing matches, no accessi call."""
+        from anncsu.cli import app
+
+        m1 = MagicMock()
+        m1.prognaz = "917960"
+        m1.dug = "VIA"
+        m1.denomuff = "NINO TARANTO"
+        m2 = MagicMock()
+        m2.prognaz = "920585"
+        m2.dug = "VIA"
+        m2.denomuff = "TARANTO"
+        odo_resp = MagicMock()
+        odo_resp.data = [m1, m2]
+
+        mock_sdk = MagicMock()
+        mock_sdk.queryparam.elencoodonimiprog_get_query_param.return_value = odo_resp
+
+        with patch("anncsu.cli.commands.pa._get_consult_sdk", return_value=mock_sdk):
+            result = cli_runner.invoke(
+                app,
+                ["pa", "accessi", "--codcom", "H501", "--denom", "dGFyYW50bw=="],
+            )
+
+        assert result.exit_code != 0
+        # Both candidates surfaced so the user can disambiguate
+        assert "917960" in result.output
+        assert "920585" in result.output
+        assert "--prognaz" in result.output
+        # Must NOT have guessed an odonimo and listed its accessi
+        mock_sdk.queryparam.elencoaccessiprog_get_query_param.assert_not_called()
+
+    def test_accessi_by_prognaz_skips_denom_search(self, cli_runner: CliRunner) -> None:
+        """--prognaz resolves the odonimo directly via prognazarea, not denom search."""
+        from anncsu.cli import app
+
+        mock_sdk = MagicMock()
+        mock_sdk.queryparam.prognazarea_get_query_param.return_value = (
+            _mock_prognazarea_response()
+        )
+        mock_sdk.queryparam.elencoaccessiprog_get_query_param.return_value = (
+            _mock_accessi_response()
+        )
+
+        with patch("anncsu.cli.commands.pa._get_consult_sdk", return_value=mock_sdk):
+            result = cli_runner.invoke(
+                app,
+                ["pa", "accessi", "--codcom", "H501", "--prognaz", "920585"],
+            )
+
+        assert result.exit_code == 0, result.output
+        # denom search must be skipped entirely
+        mock_sdk.queryparam.elencoodonimiprog_get_query_param.assert_not_called()
+        # accessi listed for the user-supplied prognaz
+        mock_sdk.queryparam.elencoaccessiprog_get_query_param.assert_called_once_with(
+            prognaz="920585",
+            accparz="1",
+        )
+
+    def test_accessi_requires_denom_or_prognaz(self, cli_runner: CliRunner) -> None:
+        """--codcom alone (no --denom, no --prognaz) errors with guidance."""
+        from anncsu.cli import app
+
+        mock_sdk = MagicMock()
+        with patch("anncsu.cli.commands.pa._get_consult_sdk", return_value=mock_sdk):
+            result = cli_runner.invoke(app, ["pa", "accessi", "--codcom", "H501"])
+
+        assert result.exit_code != 0
+        assert "--prognaz" in result.output or "--denom" in result.output
+
     def test_accessi_odonimo_not_found(self, cli_runner: CliRunner) -> None:
         """Test accessi exits with error when odonimo not found."""
         from anncsu.cli import app
