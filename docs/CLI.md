@@ -1905,13 +1905,17 @@ Options:
 - `--codice-civico-comunale` - Codifica comunale dell'accesso
 - `--coord-x` / `--coord-y` / `--coord-z` - Coordinate (longitudine, latitudine, quota)
 - `--metodo, -m` - Metodo di rilevazione (1-4)
-- `--data-valid-amm` - Data inizio validità amministrativa (formato `dd/MM/yyyy`)
+- `--data-valid-amm` - Data inizio validità amministrativa (valid calendar date, formato `dd/MM/yyyy`). No future-date bound: the accessi OAS declares none (absent = today; for delete it is the *end* of validity)
 - `--token-endpoint, -e` - PDND token endpoint URL
 - `--server-url, -s` - API server URL (auto-discovered from voucher if omitted)
 - `--validation/--production` - Use validation (UAT) or production environment
 - `--no-verify-ssl` - Disable SSL certificate verification
 - `--json` - Output as JSON
 - `--raw` - Print raw API response to stderr
+
+All constraints — including the wrapper fields (`--codcom` in Belfiore format X999, `--prognaz` ≤ 10 chars) and the `dd/MM/yyyy` date format — are validated **client-side before any API call** via `ValidatedRichiesta`/`ValidatedAccesso`: invalid input exits with code 1 and a `Validation error:` message without consuming PDND tokens. Server-side rejections (HTTP 400/404/500) are rendered with the structured ANNCSU fields: `Errore ANNCSU (codice N): messaggio` (non-ANNCSU bodies, e.g. RFC 7807 from the GovWay gateway, are shown raw).
+
+> **Known limitation — explicit `null`**: the accessi schema has **11 nullable fields** (`codice_civico_comunale`, `numero`, `esponente`, `specificita`, `metrico`, `data_valid_amm`, `isolato`, and `coordinate.x/y/z/metodo`). The CLI can omit them or set a value, but cannot send an explicit `null` to clear an existing value — same limitation as `codice_comunale` in `odonimo update`. The SDK supports it (fields are `OptionalNullable` with the `UNSET` sentinel).
 
 JSON output:
 ```json
@@ -2019,6 +2023,8 @@ JSON output:
 ```
 
 #### `anncsu accesso *` — `--dry-run` flag
+
+**Client-side validation in dry-run**: user data is validated via `ValidatedRichiesta` (wrapper + accesso, same rules as the real commands) **before any API call** — including the PA lookup. Invalid input exits 1 without touching the network.
 
 All three write commands (`insert`, `update`, `delete`) accept `--dry-run` to execute a test cycle that automatically rolls back, useful for verifying authentication, ModI configuration, and end-to-end connectivity without persisting changes.
 

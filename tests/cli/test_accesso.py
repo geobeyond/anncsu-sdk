@@ -742,6 +742,8 @@ class TestAccessoUpdateDryRun:
                         "1370588",
                         "--numero",
                         "12",
+                        "--sezione-censimento",
+                        "9",
                         "--coord-x",
                         "13.20",
                         "--coord-y",
@@ -809,6 +811,8 @@ class TestAccessoUpdateDryRun:
                         "1370588",
                         "--numero",
                         "12",
+                        "--sezione-censimento",
+                        "9",
                         "--dry-run",
                     ],
                 )
@@ -1071,3 +1075,241 @@ class TestAccessoAutoResolve:
             or "no match" in result.output.lower()
             or "no accesso" in result.output.lower()
         )
+
+
+class TestAccessoClientSideValidation:
+    """Wrapper-level (codcom/prognaz) and date-format constraints must
+    fail at CLI level BEFORE any API call (no SDK mock on purpose)."""
+
+    def test_insert_invalid_codcom_format_exits_1(self, cli_runner: CliRunner) -> None:
+        from anncsu.cli import app
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "accesso",
+                "insert",
+                "--codcom",
+                "ROMA",
+                "--prognaz",
+                "2000449",
+                "--numero",
+                "12",
+                "--sezione-censimento",
+                "9",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "codcom" in result.output
+
+    def test_insert_prognaz_too_long_exits_1(self, cli_runner: CliRunner) -> None:
+        from anncsu.cli import app
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "accesso",
+                "insert",
+                "--codcom",
+                "A062",
+                "--prognaz",
+                "12345678901",
+                "--numero",
+                "12",
+                "--sezione-censimento",
+                "9",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "progr_nazionale" in result.output
+
+    def test_insert_invalid_data_valid_amm_exits_1(self, cli_runner: CliRunner) -> None:
+        from anncsu.cli import app
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "accesso",
+                "insert",
+                "--codcom",
+                "A062",
+                "--prognaz",
+                "2000449",
+                "--numero",
+                "12",
+                "--sezione-censimento",
+                "9",
+                "--data-valid-amm",
+                "2024-10-08",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "dd/MM/yyyy" in result.output
+
+
+class TestAccessoServerErrorRendering:
+    """HTTP 400/404/500 RispostaErrore must be rendered with structured
+    codice + messaggio, not the raw JSON body."""
+
+    @staticmethod
+    def _make_risposta_errore(codice, messaggio, body=None):
+        import json
+
+        import httpx
+
+        from anncsu.accessi.errors.rispostaerrore import (
+            RispostaErrore,
+            RispostaErroreData,
+        )
+
+        payload = body or json.dumps(
+            {"id": "5144", "codice": codice, "messaggio": messaggio}
+        )
+        raw = httpx.Response(
+            400,
+            content=payload,
+            headers={"content-type": "application/problem+json"},
+            request=httpx.Request("POST", "http://test"),
+        )
+        data = RispostaErroreData(id="5144", codice=codice, messaggio=messaggio)
+        return RispostaErrore(data, raw)
+
+    def _invoke_update_with_error(self, cli_runner, tmp_path, mock_private_key, error):
+        from anncsu.cli import app
+
+        with cli_runner.isolated_filesystem(temp_dir=tmp_path):
+            Path("private_key.pem").write_text(mock_private_key.read_text())
+            with patch(
+                "anncsu.cli.commands.accesso.ClientAssertionSettings"
+            ) as mock_settings:
+                settings = MagicMock()
+                settings.has_modi_audit_context.return_value = False
+                mock_settings.return_value = settings
+                with patch(
+                    "anncsu.cli.commands.accesso.PDNDAuthManager"
+                ) as mock_manager:
+                    manager = MagicMock()
+                    manager.get_access_token.return_value = "mock-token"
+                    mock_manager.return_value = manager
+                    with patch("anncsu.cli.commands.accesso.AnncsuAccessi") as mock_sdk:
+                        sdk = MagicMock()
+                        sdk.anncsu.gestione_anncsu_pdnd.side_effect = error
+                        mock_sdk.return_value = sdk
+                        return cli_runner.invoke(
+                            app,
+                            [
+                                "accesso",
+                                "update",
+                                "--codcom",
+                                "A062",
+                                "--prognaz",
+                                "2000449",
+                                "--progr-civico",
+                                "1370588",
+                                "--numero",
+                                "12",
+                                "--sezione-censimento",
+                                "9",
+                            ],
+                        )
+
+    def test_server_error_shows_codice_and_messaggio(
+        self, cli_runner: CliRunner, tmp_path: Path, mock_private_key: Path
+    ) -> None:
+        error = self._make_risposta_errore(
+            "130", "Il metodo deve essere obbligatorio e compreso tra 1 e 4"
+        )
+        result = self._invoke_update_with_error(
+            cli_runner, tmp_path, mock_private_key, error
+        )
+        assert result.exit_code == 1
+        assert "130" in result.output
+        # single words only: Rich wraps long lines with newlines
+        assert "obbligatorio" in result.output
+        assert "API call failed" not in result.output
+
+    def test_server_error_unstructured_falls_back_to_raw_body(
+        self, cli_runner: CliRunner, tmp_path: Path, mock_private_key: Path
+    ) -> None:
+        error = self._make_risposta_errore(
+            None,
+            None,
+            body='{"type": "https://govway.org/problem", "detail": "Token scaduto"}',
+        )
+        result = self._invoke_update_with_error(
+            cli_runner, tmp_path, mock_private_key, error
+        )
+        assert result.exit_code == 1
+        # single word only: Rich wraps long lines with newlines
+        assert "scaduto" in result.output
+
+
+class TestAccessoDryRunClientSideValidation:
+    """Dry-run helpers must validate the wrapper (ValidatedRichiesta)
+    BEFORE any API call, like the real commands (no SDK mock on purpose)."""
+
+    def test_insert_dry_run_invalid_codcom_exits_1(self, cli_runner: CliRunner) -> None:
+        from anncsu.cli import app
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "accesso",
+                "insert",
+                "--dry-run",
+                "--codcom",
+                "ROMA",
+                "--prognaz",
+                "2000449",
+                "--numero",
+                "12",
+                "--sezione-censimento",
+                "9",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "codcom" in result.output
+
+    def test_update_dry_run_invalid_codcom_exits_1(self, cli_runner: CliRunner) -> None:
+        from anncsu.cli import app
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "accesso",
+                "update",
+                "--dry-run",
+                "--codcom",
+                "ROMA",
+                "--prognaz",
+                "2000449",
+                "--progr-civico",
+                "1370588",
+                "--numero",
+                "12",
+                "--sezione-censimento",
+                "9",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "codcom" in result.output
+
+    def test_delete_dry_run_invalid_codcom_exits_1(self, cli_runner: CliRunner) -> None:
+        from anncsu.cli import app
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "accesso",
+                "delete",
+                "--dry-run",
+                "--codcom",
+                "ROMA",
+                "--prognaz",
+                "2000449",
+                "--progr-civico",
+                "1370588",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "codcom" in result.output

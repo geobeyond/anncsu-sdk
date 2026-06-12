@@ -27,13 +27,14 @@ from rich.console import Console
 from rich.table import Table
 
 from anncsu.accessi import AnncsuAccessi
+from anncsu.accessi.errors import RispostaErrore as AccessiRispostaErrore
 from anncsu.accessi.models import Security
 from anncsu.accessi.models.richiestaoperazione import (
     Accesso,
     Coordinate,
     Richiesta,
 )
-from anncsu.accessi.models.validated import ValidatedAccesso
+from anncsu.accessi.models.validated import ValidatedRichiesta
 from anncsu.cli.commands.constants import _resolve_token_endpoint
 from anncsu.cli.models import (
     AccessoDryRunResult,
@@ -403,7 +404,11 @@ def _run_insert_dry_run(
     """Insert + immediate S rollback. Writes a pending log between the two
     API calls so the user has a recovery trail if the process crashes."""
     try:
-        ValidatedAccesso.model_validate(accesso.model_dump(exclude_unset=True))
+        ValidatedRichiesta.model_validate(
+            Richiesta(
+                codcom=codcom, progr_nazionale=progr_nazionale, accesso=accesso
+            ).model_dump(exclude_unset=True)
+        )
     except Exception as e:
         error_console.print(f"[red]Validation error:[/red] {e}")
         raise typer.Exit(1) from None
@@ -569,6 +574,16 @@ def _run_update_dry_run(
     ANNCSU side (legacy data), the dry-run aborts BEFORE the first R is
     sent — guaranteeing no irreversible write.
     """
+    try:
+        ValidatedRichiesta.model_validate(
+            Richiesta(
+                codcom=codcom, progr_nazionale=progr_nazionale, accesso=new_accesso
+            ).model_dump(exclude_unset=True)
+        )
+    except Exception as e:
+        error_console.print(f"[red]Validation error:[/red] {e}")
+        raise typer.Exit(1) from None
+
     progr_civico = new_accesso.progr_civico
     if not progr_civico:
         error_console.print(
@@ -775,6 +790,22 @@ def _run_delete_dry_run(
     (the spec doesn't let us force the old one), so the rollback result
     flags ``rollback_progr_civico_changed=True``.
     """
+    try:
+        ValidatedRichiesta.model_validate(
+            Richiesta(
+                codcom=codcom,
+                progr_nazionale=progr_nazionale,
+                accesso=Accesso(
+                    operazione_civico="S",
+                    progr_civico=progr_civico,
+                    data_valid_amm=data_valid_amm,
+                ),
+            ).model_dump(exclude_unset=True)
+        )
+    except Exception as e:
+        error_console.print(f"[red]Validation error:[/red] {e}")
+        raise typer.Exit(1) from None
+
     consult_sdk = _get_consult_sdk(token_endpoint=token_endpoint, verify_ssl=verify_ssl)
     originali = _lookup_accesso_originali(consult_sdk, progr_civico)
 
@@ -943,6 +974,23 @@ def _run_delete_dry_run(
         raise typer.Exit(1)
 
 
+def _render_server_error(e: AccessiRispostaErrore) -> None:
+    """Render an ANNCSU RispostaErrore (HTTP 400/404/500) readably.
+
+    The contract's problem+json carries structured ``codice`` +
+    ``messaggio``; bodies without them (e.g. RFC 7807 from the gateway)
+    fall back to the raw body.
+    """
+    codice = getattr(e.data, "codice", None)
+    messaggio = getattr(e.data, "messaggio", None)
+    if codice or messaggio:
+        error_console.print(
+            f"[red]Errore ANNCSU[/red] (codice {codice or '—'}): {messaggio or '—'}"
+        )
+    else:
+        error_console.print(f"[red]Error:[/red] {e}")
+
+
 def _execute_operation(
     *,
     operazione_civico: str,
@@ -961,10 +1009,16 @@ def _execute_operation(
     then issues the POST and renders the response either as JSON
     (``--json``) or as a rich table.
     """
-    # Pre-validate with business rules (raises ValidationError / typer.Exit on
-    # invalid input).
+    richiesta = Richiesta(
+        codcom=codcom,
+        progr_nazionale=progr_nazionale,
+        accesso=accesso,
+    )
+
+    # Pre-validate with business rules — wrapper (codcom X999, prognaz <= 10)
+    # AND embedded accesso — BEFORE any API call.
     try:
-        ValidatedAccesso.model_validate(accesso.model_dump(exclude_unset=True))
+        ValidatedRichiesta.model_validate(richiesta.model_dump(exclude_unset=True))
     except Exception as e:
         error_console.print(f"[red]Validation error:[/red] {e}")
         raise typer.Exit(1) from None
@@ -976,14 +1030,11 @@ def _execute_operation(
         modi_audience=server_url,
     )
 
-    richiesta = Richiesta(
-        codcom=codcom,
-        progr_nazionale=progr_nazionale,
-        accesso=accesso,
-    )
-
     try:
         response = sdk.anncsu.gestione_anncsu_pdnd(richiesta=richiesta)
+    except AccessiRispostaErrore as e:
+        _render_server_error(e)
+        raise typer.Exit(1) from None
     except Exception as e:
         error_console.print(f"[red]Error:[/red] API call failed: {e}")
         raise typer.Exit(1) from None

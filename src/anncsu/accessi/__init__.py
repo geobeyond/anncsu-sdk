@@ -10,13 +10,17 @@ from ._version import (
 from .errors.accesso_validation import (
     AccessoMaxLengthError,
     AccessoValidationError,
+    CodcomFormatError,
+    CodcomRequiredError,
     FieldNotAllowedForDeleteError,
     FieldNotAllowedForOperationError,
+    InvalidDateFormatError,
     NumeroMetricoMutexError,
     OperazioneCivicoError,
     ProgrCivicoRequiredError,
+    ProgrNazionaleRequiredError,
 )
-from .models.validated import ValidatedAccesso
+from .models.validated import ValidatedAccesso, ValidatedRichiesta
 from .sdk import AnncsuAccessi
 from .sdkconfiguration import SDKConfiguration
 
@@ -34,13 +38,18 @@ __all__ = [
     "AccessoMaxLengthError",
     "AccessoValidationError",
     "AnncsuAccessi",
+    "CodcomFormatError",
+    "CodcomRequiredError",
     "FieldNotAllowedForDeleteError",
     "FieldNotAllowedForOperationError",
+    "InvalidDateFormatError",
     "NumeroMetricoMutexError",
     "OperazioneCivicoError",
     "ProgrCivicoRequiredError",
+    "ProgrNazionaleRequiredError",
     "SDKConfiguration",
     "ValidatedAccesso",
+    "ValidatedRichiesta",
     "VERSION",
     "OPENAPI_DOC_VERSION",
     "SPEAKEASY_GENERATOR_VERSION",

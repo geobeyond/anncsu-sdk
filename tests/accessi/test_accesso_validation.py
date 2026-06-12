@@ -34,14 +34,18 @@ from pydantic import ValidationError
 from anncsu.accessi.errors.accesso_validation import (
     AccessoMaxLengthError,
     AccessoValidationError,
+    CodcomFormatError,
+    CodcomRequiredError,
     FieldNotAllowedForDeleteError,
     FieldNotAllowedForOperationError,
+    InvalidDateFormatError,
     NumeroMetricoMutexError,
     OperazioneCivicoError,
     ProgrCivicoRequiredError,
+    ProgrNazionaleRequiredError,
     SezioneCensimentoRequiredError,
 )
-from anncsu.accessi.models.validated import ValidatedAccesso
+from anncsu.accessi.models.validated import ValidatedAccesso, ValidatedRichiesta
 from anncsu.coordinate.errors.coordinate_validation import (
     CoordinateRangeError,
 )
@@ -616,6 +620,135 @@ class TestAccessoIntegration:
         assert accesso.metrico == "300"
         # numero is left as UNSET sentinel (Speakeasy default for not-provided)
         assert isinstance(accesso.numero, Unset) or accesso.numero is None
+
+
+# ---------------------------------------------------------------------------
+# 8. data_valid_amm format dd/MM/yyyy
+# ---------------------------------------------------------------------------
+
+
+class TestAccessoDataValidAmmFormat:
+    """data_valid_amm, when set, must be a valid dd/MM/yyyy calendar date.
+
+    NOTE: unlike odonimi, the accessi OAS declares NO not-in-future rule
+    ("se assente e' equiparata alla data corrente; per S e' la data di
+    fine validita', per le altre la data di inizio") — only the format
+    is checked client-side.
+    """
+
+    @pytest.mark.parametrize("bad", ["2024-10-08", "31/02/2024", "08.10.2024", "x"])
+    def test_invalid_date_raises(self, bad: str) -> None:
+        with pytest.raises(ValidationError) as exc_info:
+            ValidatedAccesso(
+                operazione_civico="I",
+                numero="12",
+                sezione_censimento="9",
+                data_valid_amm=bad,
+            )
+        cause = get_validation_error_cause(exc_info)
+        assert isinstance(cause, InvalidDateFormatError)
+        assert "data_valid_amm" in str(cause)
+
+    def test_valid_date_accepted(self) -> None:
+        accesso = ValidatedAccesso(
+            operazione_civico="I",
+            numero="12",
+            sezione_censimento="9",
+            data_valid_amm="08/10/2024",
+        )
+        assert accesso.data_valid_amm == "08/10/2024"
+
+    def test_future_date_accepted(self) -> None:
+        """Pins the deliberate difference vs odonimi: accessi OAS has no
+        <= today bound, so future dates pass client-side."""
+        import datetime
+
+        future = (datetime.date.today() + datetime.timedelta(days=30)).strftime(
+            "%d/%m/%Y"
+        )
+        accesso = ValidatedAccesso(
+            operazione_civico="I",
+            numero="12",
+            sezione_censimento="9",
+            data_valid_amm=future,
+        )
+        assert accesso.data_valid_amm == future
+
+
+# ---------------------------------------------------------------------------
+# 9. ValidatedRichiesta — wrapper fields (codcom, progr_nazionale)
+# ---------------------------------------------------------------------------
+
+
+def _valid_accesso_dict() -> dict:
+    return {
+        "operazione_civico": "I",
+        "numero": "12",
+        "sezione_censimento": "9",
+    }
+
+
+class TestValidatedRichiesta:
+    """The Richiesta wrapper carries codcom (format X999) and
+    progr_nazionale (<= 10 chars), both mandatory per OAS."""
+
+    def test_valid_richiesta_accepted(self) -> None:
+        richiesta = ValidatedRichiesta(
+            codcom="A062",
+            progr_nazionale="2000449",
+            accesso=_valid_accesso_dict(),
+        )
+        assert richiesta.codcom == "A062"
+
+    def test_codcom_missing_raises(self) -> None:
+        with pytest.raises(ValidationError) as exc_info:
+            ValidatedRichiesta(progr_nazionale="2000449", accesso=_valid_accesso_dict())
+        cause = get_validation_error_cause(exc_info)
+        assert isinstance(cause, CodcomRequiredError)
+
+    @pytest.mark.parametrize("bad", ["ROMA", "1234", "A06", "A0622", "a062", "A06B"])
+    def test_codcom_invalid_format_raises(self, bad: str) -> None:
+        with pytest.raises(ValidationError) as exc_info:
+            ValidatedRichiesta(
+                codcom=bad,
+                progr_nazionale="2000449",
+                accesso=_valid_accesso_dict(),
+            )
+        cause = get_validation_error_cause(exc_info)
+        assert isinstance(cause, CodcomFormatError)
+
+    def test_progr_nazionale_missing_raises(self) -> None:
+        with pytest.raises(ValidationError) as exc_info:
+            ValidatedRichiesta(codcom="A062", accesso=_valid_accesso_dict())
+        cause = get_validation_error_cause(exc_info)
+        assert isinstance(cause, ProgrNazionaleRequiredError)
+
+    def test_progr_nazionale_max_length_10_raises(self) -> None:
+        with pytest.raises(ValidationError) as exc_info:
+            ValidatedRichiesta(
+                codcom="A062",
+                progr_nazionale="12345678901",
+                accesso=_valid_accesso_dict(),
+            )
+        cause = get_validation_error_cause(exc_info)
+        assert isinstance(cause, AccessoMaxLengthError)
+        assert "progr_nazionale" in str(cause)
+
+    def test_invalid_accesso_bubbles_up(self) -> None:
+        """The embedded accesso is re-validated via ValidatedAccesso."""
+        with pytest.raises(ValidationError) as exc_info:
+            ValidatedRichiesta(
+                codcom="A062",
+                progr_nazionale="2000449",
+                accesso={"operazione_civico": "I", "numero": "12"},
+            )
+        cause = get_validation_error_cause(exc_info)
+        assert isinstance(cause, SezioneCensimentoRequiredError)
+
+    def test_accesso_missing_accepted(self) -> None:
+        """No accesso object: wrapper-only validation still applies."""
+        richiesta = ValidatedRichiesta(codcom="A062", progr_nazionale="2000449")
+        assert richiesta.accesso is None
 
 
 if __name__ == "__main__":

@@ -177,6 +177,70 @@ class AccessoMaxLengthError(AccessoValidationError):
         )
 
 
+@dataclass
+class InvalidDateFormatError(AccessoValidationError):
+    """Raised when a date field is not a valid dd/MM/yyyy calendar date.
+
+    Applies to data_valid_amm (OAS example: "08/10/2024"). NOTE: the
+    accessi OAS declares no not-in-future bound (unlike odonimi), so
+    only the format is validated client-side.
+    """
+
+    field_name: str
+    value: str
+
+    def __str__(self) -> str:
+        return (
+            f"Il campo '{self.field_name}' deve essere una data valida nel "
+            f"formato dd/MM/yyyy (es. '08/10/2024'). "
+            f"Valore fornito: {self.value!r}"
+        )
+
+
+@dataclass
+class CodcomRequiredError(AccessoValidationError):
+    """Raised when the Richiesta wrapper is missing codcom.
+
+    Per OAS spec: "Codice del comune (obbligatorio)".
+    """
+
+    def __str__(self) -> str:
+        return "Il campo 'codcom' e' obbligatorio per tutte le operazioni."
+
+
+@dataclass
+class CodcomFormatError(AccessoValidationError):
+    """Raised when codcom does not match the Belfiore format X999.
+
+    Per OAS spec: ``format: X999`` — one uppercase letter followed by
+    three digits (e.g. "A062", "H501").
+    """
+
+    value: str
+
+    def __str__(self) -> str:
+        return (
+            f"Il campo 'codcom' deve essere un codice Belfiore nel formato "
+            f"X999 (una lettera maiuscola + tre cifre, es. 'A062'). "
+            f"Valore fornito: {self.value!r}"
+        )
+
+
+@dataclass
+class ProgrNazionaleRequiredError(AccessoValidationError):
+    """Raised when the Richiesta wrapper is missing progr_nazionale.
+
+    Per OAS spec: "Progressivo nazionale (obbligatorio)" — it identifies
+    the odonimo the accesso belongs to.
+    """
+
+    def __str__(self) -> str:
+        return (
+            "Il campo 'progr_nazionale' e' obbligatorio: identifica "
+            "l'odonimo a cui appartiene l'accesso."
+        )
+
+
 __all__ = [
     "AccessoValidationError",
     "OperazioneCivicoError",
@@ -186,4 +250,8 @@ __all__ = [
     "FieldNotAllowedForOperationError",
     "SezioneCensimentoRequiredError",
     "AccessoMaxLengthError",
+    "InvalidDateFormatError",
+    "CodcomRequiredError",
+    "CodcomFormatError",
+    "ProgrNazionaleRequiredError",
 ]

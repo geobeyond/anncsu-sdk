@@ -24,23 +24,37 @@ Rules (derived from the OAS spec):
    1-4, maxLength X/Y/Z).
 7. ``sezione_censimento`` is mandatory for ``I`` and ``R`` (OAS field has
    no ``nullable: true``); rule 4 already forbids it for ``S``.
+8. ``data_valid_amm``, when set, must be a valid ``dd/MM/yyyy`` calendar
+   date. NOTE: the accessi OAS declares no not-in-future bound (unlike
+   odonimi) — absent means "data corrente", for S it is the *end* of
+   validity, for I/R the *start* — so only the format is checked.
+
+``ValidatedRichiesta`` additionally validates the wrapper fields:
+``codcom`` (mandatory, Belfiore format X999) and ``progr_nazionale``
+(mandatory, maxLength 10), re-validating the embedded ``accesso``.
 """
 
 from __future__ import annotations
 
+import datetime
+import re
 from typing import Optional
 
 from pydantic import model_validator
 
 from anncsu.accessi.errors.accesso_validation import (
     AccessoMaxLengthError,
+    CodcomFormatError,
+    CodcomRequiredError,
     FieldNotAllowedForDeleteError,
+    InvalidDateFormatError,
     NumeroMetricoMutexError,
     OperazioneCivicoError,
     ProgrCivicoRequiredError,
+    ProgrNazionaleRequiredError,
     SezioneCensimentoRequiredError,
 )
-from anncsu.accessi.models.richiestaoperazione import Accesso
+from anncsu.accessi.models.richiestaoperazione import Accesso, Richiesta
 from anncsu.coordinate.models.validated import ValidatedCoordinate
 
 VALID_OPERAZIONI = {"I", "R", "S"}
@@ -68,6 +82,15 @@ FIELDS_NOT_ALLOWED_FOR_DELETE: tuple[str, ...] = (
     "sezione_censimento",
     "isolato",
 )
+
+# Strict dd/MM/yyyy: strptime alone accepts non-zero-padded dates.
+_DATE_PATTERN = re.compile(r"^\d{2}/\d{2}/\d{4}$")
+
+# Belfiore code: one uppercase letter + three digits (OAS format X999).
+_CODCOM_PATTERN = re.compile(r"^[A-Z]\d{3}$")
+
+# Wrapper-level maxLength (Richiesta).
+PROGR_NAZIONALE_MAX_LENGTH = 10
 
 
 class ValidatedAccesso(Accesso):
@@ -136,6 +159,18 @@ class ValidatedAccesso(Accesso):
             # if the embedded coordinates violate any rule.
             ValidatedCoordinate.model_validate(payload)
 
+        # Rule 8: data_valid_amm format (no future bound in the accessi OAS)
+        value = self._get_value(self.data_valid_amm)
+        if value is not None:
+            if not _DATE_PATTERN.match(value):
+                raise InvalidDateFormatError(field_name="data_valid_amm", value=value)
+            try:
+                datetime.datetime.strptime(value, "%d/%m/%Y")
+            except ValueError:
+                raise InvalidDateFormatError(
+                    field_name="data_valid_amm", value=value
+                ) from None
+
         return self
 
     # ------------------------------------------------------------------
@@ -177,4 +212,44 @@ class ValidatedAccesso(Accesso):
                 )
 
 
-__all__ = ["ValidatedAccesso"]
+class ValidatedRichiesta(Richiesta):
+    """Accessi Richiesta wrapper with ANNCSU business rule validation.
+
+    Validates the wrapper fields (``codcom``, ``progr_nazionale``) and
+    re-validates the embedded ``accesso`` via ``ValidatedAccesso``.
+
+    Raises:
+        CodcomRequiredError: ``codcom`` missing
+        CodcomFormatError: ``codcom`` not in Belfiore format X999
+        ProgrNazionaleRequiredError: ``progr_nazionale`` missing
+        AccessoMaxLengthError: ``progr_nazionale`` exceeds 10 chars
+        AccessoValidationError (subclasses): bubbled up from the
+            embedded ``ValidatedAccesso``
+    """
+
+    @model_validator(mode="after")
+    def validate_richiesta_rules(self) -> "ValidatedRichiesta":
+        """Apply wrapper-level ANNCSU rules, then re-validate the accesso."""
+        codcom = self.codcom if self.codcom else None
+        if codcom is None:
+            raise CodcomRequiredError()
+        if not _CODCOM_PATTERN.match(codcom):
+            raise CodcomFormatError(value=codcom)
+
+        prognaz = self.progr_nazionale if self.progr_nazionale else None
+        if prognaz is None:
+            raise ProgrNazionaleRequiredError()
+        if len(prognaz) > PROGR_NAZIONALE_MAX_LENGTH:
+            raise AccessoMaxLengthError(
+                field_name="progr_nazionale",
+                value=prognaz,
+                max_length=PROGR_NAZIONALE_MAX_LENGTH,
+            )
+
+        if self.accesso is not None:
+            ValidatedAccesso.model_validate(self.accesso.model_dump(exclude_unset=True))
+
+        return self
+
+
+__all__ = ["ValidatedAccesso", "ValidatedRichiesta"]

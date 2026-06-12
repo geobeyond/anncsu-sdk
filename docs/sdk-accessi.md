@@ -221,6 +221,22 @@ Le regole sono applicate in ordine in un singolo `@model_validator(mode="after")
 4. **Per `R` / `S`**: `progr_civico` obbligatorio — altrimenti `ProgrCivicoRequiredError`
 5. **Per `I` / `R`**: esattamente uno tra `numero` e `metrico` (XOR strict) — altrimenti `NumeroMetricoMutexError`
 6. **Coordinate**, se presenti, vengono ri-validate via `ValidatedCoordinate` (range Italia, X/Y dependency, `metodo` 1-4, `maxLength` X/Y/Z)
+7. **Per `I` / `R`**: `sezione_censimento` obbligatoria (issue #30; l'OAS la dichiara senza `nullable: true`) — altrimenti `SezioneCensimentoRequiredError`
+8. `data_valid_amm`, se valorizzata, deve essere una data di calendario valida in formato **`dd/MM/yyyy`** — altrimenti `InvalidDateFormatError`. **Nota**: a differenza di odonimi, l'OAS accessi *non* dichiara vincoli sul futuro (assente = data corrente; per `S` è la data di *fine* validità, per `I`/`R` quella di *inizio*) — quindi lato client si valida solo il formato
+
+### `ValidatedRichiesta` — validazione del wrapper
+
+Il wrapper `Richiesta` (che contiene `codcom`, `progr_nazionale` e l'oggetto `accesso`) ha un suo modello validato, usato dalla CLI prima di ogni chiamata:
+
+- `codcom` obbligatorio e in **formato Belfiore X999** (una lettera maiuscola + tre cifre, es. `A062`) — altrimenti `CodcomRequiredError` / `CodcomFormatError`
+- `progr_nazionale` obbligatorio e ≤ 10 caratteri — altrimenti `ProgrNazionaleRequiredError` / `AccessoMaxLengthError`
+- l'`accesso` incorporato viene ri-validato via `ValidatedAccesso` (gli errori risalgono)
+
+```python
+from anncsu.accessi.models.validated import ValidatedRichiesta
+
+ValidatedRichiesta.model_validate(richiesta.model_dump(exclude_unset=True))
+```
 
 ### Uso del Modello Validato
 
@@ -271,6 +287,11 @@ from anncsu.accessi.errors.accesso_validation import (
     NumeroMetricoMutexError,       # both/neither numero+metrico per I/R
     FieldNotAllowedForDeleteError, # campo non valorizzabile per S
     AccessoMaxLengthError,         # campo eccede maxLength
+    SezioneCensimentoRequiredError, # sezione_censimento mancante per I/R
+    InvalidDateFormatError,        # data non valida o non dd/MM/yyyy
+    CodcomRequiredError,           # codcom mancante (wrapper Richiesta)
+    CodcomFormatError,             # codcom non in formato Belfiore X999
+    ProgrNazionaleRequiredError,   # progr_nazionale mancante (wrapper)
 )
 
 # Catch specifico
@@ -359,8 +380,10 @@ except ModIHookError as e:
     # Errore nella generazione degli header ModI
     print(f"ModI Error: {e.message}")
 except RispostaErrore as e:
-    # Errore dall'API (RFC 7807)
-    print(f"API Error code: {e.codice}, msg: {e.messaggio}")
+    # Errore dall'API. NB: il problem+json ANNCSU NON e' RFC 7807 —
+    # schema custom id/codice/messaggio, parsato in e.data.*
+    # (str(e) e' il body JSON grezzo: non usarlo per estrarre i campi).
+    print(f"API Error code: {e.data.codice}, msg: {e.data.messaggio}")
 except APIError as e:
     # Errore HTTP generico
     print(f"HTTP Error: {e.status_code}")
