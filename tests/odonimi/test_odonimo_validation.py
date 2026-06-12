@@ -20,9 +20,12 @@ Business rules from OAS spec (tipo_operazione ∈ {I, R, S}):
 7. aut_prefettura.data_pref and protocollo_pref are mutex:
    if one is set, the other must be set too.
 
-Rules 8-9 (data_valid_amm ≤ corrente per I/S, ≥ precedente per R) are
-delegated to server-side validation (they require date arithmetic and
-historical lookup that the server already handles with clear errors).
+8. provvedimento.flag_delibera, when set, must be one of "0".."4".
+9. Date fields (provvedimento.data, aut_prefettura.data_pref,
+   data_valid_amm) must be valid dd/MM/yyyy calendar dates.
+10. data_valid_amm must not be in the future for I/S. The R rule
+    ("≥ della precedente") stays server-side: it needs the previous
+    historical value.
 """
 
 from __future__ import annotations
@@ -32,9 +35,12 @@ from pydantic import ValidationError
 
 from anncsu.odonimi.errors.odonimo_validation import (
     CodcomRequiredError,
+    DataValidAmmInFutureError,
     DugNotAllowedForDeleteError,
     DugRequiredError,
+    FlagDeliberaInvalidValueError,
     FlagDeliberaMissingFieldsError,
+    InvalidDateFormatError,
     OdonimoMaxLengthError,
     OdonimoValidationError,
     PrefetturaMutexError,
@@ -474,6 +480,177 @@ class TestOdonimoIntegration:
         )
         assert odonimo.tipo_operazione == "S"
         assert odonimo.data_valid_amm == "31/12/2025"
+
+
+# ---------------------------------------------------------------------------
+# 8. provvedimento.flag_delibera range (OAS: "valori numerici da 0 a 4")
+# ---------------------------------------------------------------------------
+
+
+class TestOdonimoFlagDeliberaRange:
+    """flag_delibera, when set, must be one of '0'..'4'."""
+
+    @pytest.mark.parametrize("flag", ["5", "9", "-1", "00", "01", " 1", "+1", "1.0"])
+    def test_flag_delibera_out_of_range_raises(self, flag: str) -> None:
+        """Strict set membership: numerically-plausible variants of valid
+        values ('01', ' 1', '+1', ...) must be rejected too — pins the
+        check against a future int()-based 'optimization'."""
+        with pytest.raises(ValidationError) as exc_info:
+            ValidatedOdonimo(
+                **_VALID_INSERT,
+                provvedimento={"flag_delibera": flag},
+            )
+        cause = get_validation_error_cause(exc_info)
+        assert isinstance(cause, FlagDeliberaInvalidValueError)
+
+    def test_flag_delibera_non_numeric_raises(self) -> None:
+        with pytest.raises(ValidationError) as exc_info:
+            ValidatedOdonimo(
+                **_VALID_INSERT,
+                provvedimento={"flag_delibera": "abc"},
+            )
+        cause = get_validation_error_cause(exc_info)
+        assert isinstance(cause, FlagDeliberaInvalidValueError)
+
+    @pytest.mark.parametrize("flag", ["0", "1", "2", "3", "4"])
+    def test_flag_delibera_valid_values_accepted(self, flag: str) -> None:
+        odonimo = ValidatedOdonimo(
+            **_VALID_INSERT,
+            provvedimento={
+                "flag_delibera": flag,
+                # data+protocollo always set: required anyway for 0/1
+                "data": "10/10/2023",
+                "protocollo": "1234567/abc",
+            },
+        )
+        assert odonimo.provvedimento.flag_delibera == flag
+
+
+# ---------------------------------------------------------------------------
+# 9. Date format dd/MM/yyyy (provvedimento.data, data_pref, data_valid_amm)
+# ---------------------------------------------------------------------------
+
+
+class TestOdonimoDateFormat:
+    """Date fields, when set, must be valid dd/MM/yyyy calendar dates."""
+
+    def test_provvedimento_data_iso_format_raises(self) -> None:
+        with pytest.raises(ValidationError) as exc_info:
+            ValidatedOdonimo(
+                **_VALID_INSERT,
+                provvedimento={
+                    "flag_delibera": "1",
+                    "data": "2023-10-10",
+                    "protocollo": "1234567/abc",
+                },
+            )
+        cause = get_validation_error_cause(exc_info)
+        assert isinstance(cause, InvalidDateFormatError)
+
+    def test_provvedimento_data_invalid_calendar_date_raises(self) -> None:
+        with pytest.raises(ValidationError) as exc_info:
+            ValidatedOdonimo(
+                **_VALID_INSERT,
+                provvedimento={
+                    "flag_delibera": "1",
+                    "data": "31/02/2024",
+                    "protocollo": "1234567/abc",
+                },
+            )
+        cause = get_validation_error_cause(exc_info)
+        assert isinstance(cause, InvalidDateFormatError)
+
+    def test_data_pref_invalid_format_raises(self) -> None:
+        with pytest.raises(ValidationError) as exc_info:
+            ValidatedOdonimo(
+                **_VALID_INSERT,
+                aut_prefettura={
+                    "data_pref": "10-10-2023",
+                    "protocollo_pref": "Prot.Gen.1234567",
+                },
+            )
+        cause = get_validation_error_cause(exc_info)
+        assert isinstance(cause, InvalidDateFormatError)
+
+    def test_data_valid_amm_invalid_format_raises(self) -> None:
+        with pytest.raises(ValidationError) as exc_info:
+            ValidatedOdonimo(**_VALID_INSERT, data_valid_amm="08.10.2024")
+        cause = get_validation_error_cause(exc_info)
+        assert isinstance(cause, InvalidDateFormatError)
+
+    def test_valid_dates_accepted(self) -> None:
+        odonimo = ValidatedOdonimo(
+            **_VALID_INSERT,
+            provvedimento={
+                "flag_delibera": "1",
+                "data": "10/10/2023",
+                "protocollo": "1234567/abc",
+            },
+            aut_prefettura={
+                "data_pref": "10/10/2023",
+                "protocollo_pref": "Prot.Gen.1234567",
+            },
+            data_valid_amm="08/10/2024",
+        )
+        assert odonimo.data_valid_amm == "08/10/2024"
+
+    def test_error_message_names_the_field(self) -> None:
+        with pytest.raises(ValidationError) as exc_info:
+            ValidatedOdonimo(**_VALID_INSERT, data_valid_amm="not-a-date")
+        cause = get_validation_error_cause(exc_info)
+        assert "data_valid_amm" in str(cause)
+
+
+# ---------------------------------------------------------------------------
+# 10. data_valid_amm <= current date for I and S (client-side computable).
+#     The R rule (>= previous value) stays server-side: needs history lookup.
+# ---------------------------------------------------------------------------
+
+
+class TestOdonimoDataValidAmmNotFuture:
+    """For I/S, data_valid_amm must not be in the future."""
+
+    @staticmethod
+    def _future_date() -> str:
+        import datetime
+
+        future = datetime.date.today() + datetime.timedelta(days=30)
+        return future.strftime("%d/%m/%Y")
+
+    @staticmethod
+    def _today() -> str:
+        import datetime
+
+        return datetime.date.today().strftime("%d/%m/%Y")
+
+    def test_insert_future_data_valid_amm_raises(self) -> None:
+        with pytest.raises(ValidationError) as exc_info:
+            ValidatedOdonimo(**_VALID_INSERT, data_valid_amm=self._future_date())
+        cause = get_validation_error_cause(exc_info)
+        assert isinstance(cause, DataValidAmmInFutureError)
+
+    def test_delete_future_data_valid_amm_raises(self) -> None:
+        with pytest.raises(ValidationError) as exc_info:
+            ValidatedOdonimo(**_VALID_DELETE, data_valid_amm=self._future_date())
+        cause = get_validation_error_cause(exc_info)
+        assert isinstance(cause, DataValidAmmInFutureError)
+
+    def test_insert_today_valid(self) -> None:
+        odonimo = ValidatedOdonimo(**_VALID_INSERT, data_valid_amm=self._today())
+        assert odonimo.data_valid_amm == self._today()
+
+    def test_replace_future_data_valid_amm_raises(self) -> None:
+        """OAS reading: the '<= data corrente' bound applies to R too
+        ("Per aggiornamento anche >= della precedente" — 'anche' is
+        additive). Only the '>= previous' half stays server-side."""
+        with pytest.raises(ValidationError) as exc_info:
+            ValidatedOdonimo(**_VALID_REPLACE, data_valid_amm=self._future_date())
+        cause = get_validation_error_cause(exc_info)
+        assert isinstance(cause, DataValidAmmInFutureError)
+
+    def test_replace_today_valid(self) -> None:
+        odonimo = ValidatedOdonimo(**_VALID_REPLACE, data_valid_amm=self._today())
+        assert odonimo.data_valid_amm == self._today()
 
 
 if __name__ == "__main__":

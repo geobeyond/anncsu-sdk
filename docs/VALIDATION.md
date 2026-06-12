@@ -2,6 +2,8 @@
 
 The ANNCSU SDK implements a hybrid validation approach to ensure data quality for both API requests and responses.
 
+> **Write operations (odonimi/accessi)**: the business-rule validation for the *aggiornamento* APIs lives in dedicated models — `ValidatedOdonimo` (rules I/R/S, maxLength, flag delibera 0-4, date `dd/MM/yyyy`, `data_valid_amm` non-future) and `ValidatedAccesso`. See [sdk-odonimi.md § Validazione Odonimo](sdk-odonimi.md#validazione-odonimo) for the full rule list and error classes. This document covers the *consultazione* (PA) input/response validation.
+
 ## Overview
 
 ### Phase 1: Input Validation (Always Enabled)

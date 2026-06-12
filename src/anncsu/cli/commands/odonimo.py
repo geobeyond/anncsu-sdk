@@ -48,6 +48,7 @@ from anncsu.common.modi import AuditContext, ModIConfig
 from anncsu.common.security import Security as PASecurity
 from anncsu.common.session import get_config_dir
 from anncsu.odonimi import AnncsuOdonimi
+from anncsu.odonimi.errors import RispostaErrore as OdonimiRispostaErrore
 from anncsu.odonimi.models import Security
 from anncsu.odonimi.models.richiestaoperazione import (
     AutPrefettura,
@@ -1364,6 +1365,36 @@ def _build_richiesta(
     )
 
 
+def _render_server_error(
+    e: OdonimiRispostaErrore,
+    *,
+    tipo_operazione: str,
+    richiesta: Richiesta,
+) -> None:
+    """Render an ANNCSU ``RispostaErrore`` (HTTP 400/404/500) readably.
+
+    The contract's problem+json carries structured ``codice`` +
+    ``messaggio``; bodies without them (e.g. RFC 7807 from the gateway)
+    fall back to the raw body. For R with ``data_valid_amm`` set, the
+    server-side rule that the client cannot check is surfaced as a hint.
+    """
+    codice = getattr(e.data, "codice", None)
+    messaggio = getattr(e.data, "messaggio", None)
+    if codice or messaggio:
+        error_console.print(
+            f"[red]Errore ANNCSU[/red] (codice {codice or '—'}): {messaggio or '—'}"
+        )
+    else:
+        error_console.print(f"[red]Error:[/red] {e}")
+
+    if tipo_operazione == "R" and richiesta.data_valid_amm:
+        error_console.print(
+            "[yellow]Nota:[/yellow] per l'aggiornamento (R), 'data_valid_amm' "
+            "deve essere maggiore o uguale alla precedente data di validità "
+            "dell'odonimo (regola verificata dal server ANNCSU)."
+        )
+
+
 def _execute_operation(
     *,
     tipo_operazione: str,
@@ -1395,6 +1426,9 @@ def _execute_operation(
 
     try:
         response = sdk.anncsu.gestione_anncsu_odonimi_pdnd(richiesta=richiesta)
+    except OdonimiRispostaErrore as e:
+        _render_server_error(e, tipo_operazione=tipo_operazione, richiesta=richiesta)
+        raise typer.Exit(1) from None
     except Exception as e:
         error_console.print(f"[red]Error:[/red] API call failed: {e}")
         raise typer.Exit(1) from None
@@ -1532,7 +1566,10 @@ def insert(
         str | None,
         typer.Option(
             "--data-valid-amm",
-            help="Data di validità amministrativa (dd/MM/yyyy).",
+            help=(
+                "Data di validità amministrativa (dd/MM/yyyy). Non può "
+                "essere nel futuro (regola ANNCSU per I)."
+            ),
         ),
     ] = None,
     token_endpoint: Annotated[
@@ -1743,7 +1780,12 @@ def update(
         str | None,
         typer.Option(
             "--data-valid-amm",
-            help="Data di validità amministrativa (dd/MM/yyyy).",
+            help=(
+                "Data di validità amministrativa (dd/MM/yyyy). Non può "
+                "essere nel futuro; inoltre per l'odonimo esistente deve "
+                "essere >= della precedente data di validità (quest'ultima "
+                "regola è verificata dal server ANNCSU)."
+            ),
         ),
     ] = None,
     token_endpoint: Annotated[
@@ -1916,7 +1958,10 @@ def delete(
         str | None,
         typer.Option(
             "--data-valid-amm",
-            help="Data di fine validità (dd/MM/yyyy). Default: data corrente.",
+            help=(
+                "Data di fine validità (dd/MM/yyyy). Default: data "
+                "corrente. Non può essere nel futuro (regola ANNCSU per S)."
+            ),
         ),
     ] = None,
     token_endpoint: Annotated[

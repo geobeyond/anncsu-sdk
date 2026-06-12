@@ -2192,17 +2192,17 @@ anncsu odonimo insert --codcom A062 --dug VIA \
 Options:
 
 - `--codcom, -c` - Codice comune (Belfiore code, e.g. `A062`) **[required]**
-- `--dug` - DUG (e.g. `VIA`, `PIAZZA`, `STRADA`) **[required for I/R]**
-- `--denom-delibera` - Denominazione delibera (uppercase applied server-side)
-- `--denom-in-lingua-1` / `--denom-in-lingua-2` - Odonimo in lingua (per comuni bi/tri-lingua)
-- `--denom-localita` - Denominazione località (uppercase applied)
-- `--codice-comunale` - Codifica comunale dell'odonimo (no uppercase)
-- `--provv-data` - Data del provvedimento (formato `dd/MM/yyyy`)
+- `--dug` - DUG (e.g. `VIA`, `PIAZZA`, `STRADA`; max 30 char) **[required for I/R]**
+- `--denom-delibera` - Denominazione ufficiale da delibera, **senza DUG** (e.g. `DELLE ORCHIDEE` for "VIA DELLE ORCHIDEE"; max 120 char, uppercase applied server-side)
+- `--denom-in-lingua-1` / `--denom-in-lingua-2` - Odonimo in lingua, **DUG inclusa** (per comuni bi/tri-lingua; max 150 char, uppercase applied)
+- `--denom-localita` - Denominazione località (max 151 char — OAS quirk; uppercase applied)
+- `--codice-comunale` - Codifica comunale dell'odonimo (max 30 char, no uppercase)
+- `--provv-data` - Data del provvedimento (valid calendar date, formato `dd/MM/yyyy`)
 - `--provv-protocollo` - Protocollo del provvedimento (max 70 char, no uppercase)
-- `--provv-flag-delibera` - Flag delibera (`0`-`4`); `0` and `1` make `--provv-data` + `--provv-protocollo` required
-- `--prefettura-data` - Data prefettura (required if `--prefettura-protocollo`)
-- `--prefettura-protocollo` - Protocollo prefettura (required if `--prefettura-data`)
-- `--data-valid-amm` - Data validità amministrativa (formato `dd/MM/yyyy`)
+- `--provv-flag-delibera` - Flag delibera, **only `0`-`4` accepted**; `0` and `1` make `--provv-data` + `--provv-protocollo` required
+- `--prefettura-data` - Data prefettura (`dd/MM/yyyy`; required if `--prefettura-protocollo`)
+- `--prefettura-protocollo` - Protocollo prefettura (max 70 char; required if `--prefettura-data`)
+- `--data-valid-amm` - Data validità amministrativa (`dd/MM/yyyy`). Must be **≤ today** for every operation (checked client-side); for R it must additionally be ≥ the previous validity date (checked server-side)
 - `--token-endpoint, -e` - PDND token endpoint URL
 - `--server-url, -s` - API server URL (auto-discovered from voucher if omitted)
 - `--validation/--production` - Use validation (UAT) or production environment
@@ -2210,6 +2210,8 @@ Options:
 - `--json` - Output as JSON
 - `--raw` - Print raw API response to stderr
 - `--dry-run` - I + S rollback (see `--dry-run` section below)
+
+All constraints above (maxLength, flag range, date format, future dates) are validated **client-side before any API call** via `ValidatedOdonimo` — invalid input exits with code 1 and a `Validation error:` message, without consuming PDND tokens. See [sdk-odonimi.md](sdk-odonimi.md#business-rules) for the full rule list.
 
 JSON output:
 
@@ -2241,10 +2243,22 @@ anncsu odonimo update --codcom A062 \
 
 Options:
 
-- All `insert` options (except `--prognaz` is required, not assigned)
-- `--prognaz, -p` - Progressivo nazionale dell'odonimo (required unless `--auto-resolve`)
+- All `insert` options (same fields, constraints and client-side validation — see the `insert` option list above)
+- `--prognaz, -p` - Progressivo nazionale dell'odonimo (max 10 char; required unless `--auto-resolve`)
 - `--auto-resolve` - Resolve `--prognaz` via PA from `--codcom` + `--denom` (see `--auto-resolve` section)
-- `--denom` - Base64-encoded denomination used with `--auto-resolve`
+- `--denom` - Base64-encoded denomination used with `--auto-resolve` (lookup only — the **new** denomination goes in `--denom-delibera`)
+
+Note: `R` is a **replace**, not a partial patch — read the current state first (`anncsu pa odonimo`) and re-pass the values you want to keep.
+
+Server-side errors (HTTP 400/404/500) are rendered with the structured ANNCSU fields:
+
+```
+Errore ANNCSU (codice 23): Errore di validazione: ...
+```
+
+When an `R` with `--data-valid-amm` fails server-side, the CLI also prints a hint about the rule it cannot check client-side: *per l'aggiornamento (R), `data_valid_amm` deve essere ≥ della precedente data di validità dell'odonimo*. Non-ANNCSU error bodies (e.g. RFC 7807 from the GovWay gateway) are shown raw.
+
+> **Known limitation — clearing `codice_comunale`**: `codice_comunale` is the only *nullable* field of the request schema (three states: omitted / value / explicit `null`). The CLI can omit it or set a value, but cannot send an explicit `"codice_comunale": null` — i.e. there is no way to **clear** an existing codifica comunale via `update`. If this becomes a real use case, a dedicated flag (e.g. `--clear-codice-comunale`) is the planned solution. The SDK supports it already: `Richiesta(codice_comunale=None, ...)` with the field explicitly set serializes to `null`.
 
 #### `anncsu odonimo delete`
 
@@ -2308,6 +2322,12 @@ Unlike `accesso --dry-run` (which operates on an existing accesso via test+resto
 **Crash safety**: before any rollback API call, a JSON file is written to `~/.anncsu/dryrun_pending.json` with all data needed for manual cleanup if the CLI crashes between steps.
 
 **For `update --dry-run`**: `--prognaz` and `--auto-resolve` are ignored (a warning is printed) because the R is always applied to the fake odonimo generated by the preceding I.
+
+**Client-side validation in dry-run**: user data is validated via `ValidatedOdonimo` (same rules as the real commands — maxLength, flag range, date format, future dates) before being sent. For `update --dry-run` the user R payload is validated **after** the fake I has been created: on validation error the CLI prints `Validation error (user R):`, attempts an emergency S cleanup of the fake odonimo, and exits 1.
+
+**Server error rendering in dry-run**: unlike the real commands (which render `Errore ANNCSU (codice N): messaggio` plus the `data_valid_amm` hint), a server rejection inside a dry-run step is captured into that step's result — e.g. `update_op.messaggio = "Update exception: <raw body>"` — so the cycle can continue with the S cleanup. Check `test_op` / `update_op` / `rollback` in the JSON output for the per-step outcome.
+
+> **Tip — reproducing the `data_valid_amm` server rule safely**: the fake odonimo is created *today*, so its current validity date is the creation date. Running `update --dry-run --data-valid-amm <past date>` makes the R violate the server rule *data_valid_amm ≥ precedente* on the fictitious odonimo — a safe way to capture the real ANNCSU error code and message without touching real data.
 
 Examples:
 

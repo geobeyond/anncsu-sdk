@@ -257,6 +257,28 @@ def is_success(response, tipo_operazione: str) -> bool:
 
 Una check ingenua `esito == "0"` produce un **false-negative** sulle S che vanno a buon fine — è una causa nota di errori in codice cliente.
 
+## Errori HTTP (`RispostaErrore`)
+
+I rifiuti del server (HTTP **400** richiesta non valida, **404** odonimo non trovato, **500** errore interno) arrivano come `application/problem+json`, ma **non è RFC 7807**: il contratto ANNCSU definisce uno schema custom con tre campi (`id`, `codice`, `messaggio`). L'SDK li trasforma nell'eccezione `RispostaErrore`:
+
+```python
+from anncsu.odonimi.errors import RispostaErrore
+
+try:
+    response = sdk.anncsu.gestione_anncsu_odonimi_pdnd(richiesta=richiesta)
+except RispostaErrore as e:
+    print(e.data.codice)     # es. "23" — codice dal catalogo errori ANNCSU
+    print(e.data.messaggio)  # es. "Errore di validazione: ..."
+    # str(e) è il body JSON grezzo della risposta
+```
+
+Attenzione a due cose:
+
+- `str(e)` (e quindi un log naive `f"errore: {e}"`) mostra il **body grezzo**, non i campi strutturati — usare sempre `e.data.codice` / `e.data.messaggio`.
+- Se il body non è conforme allo schema ANNCSU (es. un RFC 7807 vero emesso dal gateway GovWay, con `type`/`title`/`detail`), `e.data.codice` e `e.data.messaggio` sono `None`: in quel caso l'unica informazione utile è `str(e)`.
+
+Caso tipico di 400 su `R`: `data_valid_amm` inferiore alla precedente data di validità dell'odonimo — regola che il client **non può** verificare (richiede il valore storico). La CLI in questo caso mostra `Errore ANNCSU (codice N): messaggio` più una nota che spiega la regola.
+
 ## Validazione Odonimo
 
 L'SDK fornisce un modello `ValidatedOdonimo` con validazione delle business rules ANNCSU. Va sempre usato prima della chiamata API per intercettare errori a livello locale.
@@ -273,8 +295,11 @@ Le regole sono applicate in ordine in un singolo `@model_validator(mode="after")
 6. **Per `S`**: `dug` **vietato** — altrimenti `DugNotAllowedForDeleteError`
 7. Se `provvedimento.flag_delibera ∈ {"0","1"}`: `data` + `protocollo` obbligatori — altrimenti `FlagDeliberaMissingFieldsError`
 8. `aut_prefettura.data_pref` ↔ `protocollo_pref` mutex (entrambi o nessuno) — altrimenti `PrefetturaMutexError`
+9. `provvedimento.flag_delibera`, se valorizzato, deve essere `"0"`..`"4"` (OAS: "valori numerici da 0 a 4") — altrimenti `FlagDeliberaInvalidValueError`
+10. I campi data (`provvedimento.data`, `aut_prefettura.data_pref`, `data_valid_amm`), se valorizzati, devono essere date di calendario valide in formato **`dd/MM/yyyy`** (es. `"10/10/2023"`; rifiutati `"2023-10-10"`, `"31/02/2024"`) — altrimenti `InvalidDateFormatError`
+11. `data_valid_amm` non può essere nel futuro, per **tutte** le operazioni — altrimenti `DataValidAmmInFutureError`. L'OAS dice "minore o uguale della data corrente per inserimento e soppressione. Per aggiornamento **anche** >= della precedente": l'"anche" è additivo, quindi il vincolo ≤ data corrente vale pure per `R`
 
-Le regole su `data_valid_amm` (`≤` data corrente per `I/S`, `≥` precedente per `R`) sono **delegate al server** (richiedono date arithmetic e lookup storici non disponibili lato client).
+La metà R-only della regola su `data_valid_amm` (`≥` della precedente) resta **delegata al server**: richiede il valore storico precedente, non disponibile lato client.
 
 ### Uso del Modello Validato
 
@@ -338,6 +363,9 @@ from anncsu.odonimi.errors.odonimo_validation import (
     OdonimoMaxLengthError,          # campo eccede maxLength OAS
     FlagDeliberaMissingFieldsError, # flag_delibera 0/1 senza data+protocollo
     PrefetturaMutexError,           # data_pref ↔ protocollo_pref mutex
+    FlagDeliberaInvalidValueError,  # flag_delibera fuori range 0-4
+    InvalidDateFormatError,         # data non valida o non dd/MM/yyyy
+    DataValidAmmInFutureError,      # data_valid_amm nel futuro per I/S
 )
 
 # Catch specifico

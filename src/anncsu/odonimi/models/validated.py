@@ -22,23 +22,34 @@ Rules (derived from the OAS spec):
 7. ``aut_prefettura.data_pref`` and ``protocollo_pref`` are mutually
    required: if one is set, the other must be set too.
 
-Rules 8-9 (``data_valid_amm`` ≤ corrente per ``I/S``, ≥ precedente per
-``R``) are delegated to server-side validation — they require date
-arithmetic and historical lookup that the server already handles with
-clear errors.
+8. ``provvedimento.flag_delibera``, when set, must be one of ``"0"``
+   .. ``"4"`` (OAS: "valori numerici da 0 a 4").
+9. Date fields (``provvedimento.data``, ``aut_prefettura.data_pref``,
+   ``data_valid_amm``), when set, must be valid ``dd/MM/yyyy`` calendar
+   dates (OAS examples: "10/10/2023").
+10. ``data_valid_amm`` must not be in the future, for every operation
+    (OAS: "minore o uguale della data corrente per inserimento e
+    soppressione. Per aggiornamento anche >= della precedente" —
+    'anche' is additive). The R-only half ("≥ della precedente") is
+    delegated to the server: it requires the historical value.
 """
 
 from __future__ import annotations
 
+import datetime
+import re
 from typing import Optional
 
 from pydantic import model_validator
 
 from anncsu.odonimi.errors.odonimo_validation import (
     CodcomRequiredError,
+    DataValidAmmInFutureError,
     DugNotAllowedForDeleteError,
     DugRequiredError,
+    FlagDeliberaInvalidValueError,
     FlagDeliberaMissingFieldsError,
+    InvalidDateFormatError,
     OdonimoMaxLengthError,
     PrefetturaMutexError,
     ProgrNazionaleRequiredError,
@@ -64,6 +75,11 @@ MAX_LENGTHS: dict[str, int] = {
 PROVVEDIMENTO_MAX_LENGTHS: dict[str, int] = {"protocollo": 70}
 AUT_PREFETTURA_MAX_LENGTHS: dict[str, int] = {"protocollo_pref": 70}
 
+VALID_FLAG_DELIBERA = {"0", "1", "2", "3", "4"}
+
+# Strict dd/MM/yyyy: strptime alone accepts non-zero-padded dates.
+_DATE_PATTERN = re.compile(r"^\d{2}/\d{2}/\d{4}$")
+
 
 class ValidatedOdonimo(Richiesta):
     """Odonimo Richiesta model with ANNCSU business rule validation.
@@ -83,6 +99,12 @@ class ValidatedOdonimo(Richiesta):
             "0" or "1" but ``data`` or ``protocollo`` are missing
         PrefetturaMutexError: ``aut_prefettura.data_pref`` and
             ``protocollo_pref`` are not both set or both unset
+        FlagDeliberaInvalidValueError: ``provvedimento.flag_delibera``
+            is set but not one of "0".."4"
+        InvalidDateFormatError: a date field is not a valid dd/MM/yyyy
+            calendar date
+        DataValidAmmInFutureError: ``data_valid_amm`` is in the future
+            for I or S
     """
 
     @model_validator(mode="after")
@@ -113,12 +135,17 @@ class ValidatedOdonimo(Richiesta):
             raise DugNotAllowedForDeleteError(value=str(self.dug))
 
         # Rule 6: provvedimento.flag_delibera in {0,1} → data+protocollo required
+        # Rule 8: flag_delibera range; Rule 9: data format
         if self.provvedimento is not None:
             self._validate_provvedimento()
 
         # Rule 7: aut_prefettura.data_pref ↔ protocollo_pref mutex
+        # Rule 9: data_pref format
         if self.aut_prefettura is not None:
             self._validate_aut_prefettura()
+
+        # Rules 9-10: data_valid_amm format and not-in-future for I/S
+        self._validate_data_valid_amm(op)
 
         return self
 
@@ -178,10 +205,26 @@ class ValidatedOdonimo(Richiesta):
                         max_length=max_length,
                     )
 
+    def _parse_date(
+        self, field_name: str, value: Optional[str]
+    ) -> Optional[datetime.date]:
+        """Rule 9: parse a dd/MM/yyyy date, raising on invalid format."""
+        if value is None:
+            return None
+        if not _DATE_PATTERN.match(value):
+            raise InvalidDateFormatError(field_name=field_name, value=value)
+        try:
+            return datetime.datetime.strptime(value, "%d/%m/%Y").date()
+        except ValueError:
+            raise InvalidDateFormatError(field_name=field_name, value=value) from None
+
     def _validate_provvedimento(self) -> None:
-        """Rule 6: when flag_delibera is '0' or '1', data and protocollo
-        are required."""
+        """Rules 6, 8, 9 on the nested provvedimento object."""
+        self._parse_date("provvedimento.data", self._get_value(self.provvedimento.data))
+
         flag = self._get_value(self.provvedimento.flag_delibera)
+        if flag is not None and flag not in VALID_FLAG_DELIBERA:
+            raise FlagDeliberaInvalidValueError(value=flag)
         if flag not in {"0", "1"}:
             return
 
@@ -197,7 +240,12 @@ class ValidatedOdonimo(Richiesta):
             )
 
     def _validate_aut_prefettura(self) -> None:
-        """Rule 7: data_pref and protocollo_pref are mutex (both or neither)."""
+        """Rules 7 and 9 on the nested aut_prefettura object."""
+        self._parse_date(
+            "aut_prefettura.data_pref",
+            self._get_value(self.aut_prefettura.data_pref),
+        )
+
         has_data = self._get_value(self.aut_prefettura.data_pref) is not None
         has_protocollo = (
             self._get_value(self.aut_prefettura.protocollo_pref) is not None
@@ -207,6 +255,21 @@ class ValidatedOdonimo(Richiesta):
                 has_data_pref=has_data,
                 has_protocollo_pref=has_protocollo,
             )
+
+    def _validate_data_valid_amm(self, op: str) -> None:
+        """Rules 9-10: format always; never in the future (any operation).
+
+        OAS: "minore o uguale della data corrente per inserimento e
+        soppressione. Per aggiornamento anche >= della precedente" —
+        'anche' is additive, so the <= today bound applies to R too.
+        Only the '>= precedente' half is delegated to the server.
+        """
+        value = self._get_value(self.data_valid_amm)
+        parsed = self._parse_date("data_valid_amm", value)
+        if parsed is None:
+            return
+        if parsed > datetime.date.today():
+            raise DataValidAmmInFutureError(operazione=op, value=value)
 
 
 __all__ = ["ValidatedOdonimo"]

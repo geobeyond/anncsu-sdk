@@ -175,6 +175,63 @@ class PrefetturaMutexError(OdonimoValidationError):
         )
 
 
+@dataclass
+class FlagDeliberaInvalidValueError(OdonimoValidationError):
+    """Raised when provvedimento.flag_delibera is not one of '0'..'4'.
+
+    Per OAS spec: "Flag della delibera (valori numerici da 0 a 4)".
+    """
+
+    value: str
+
+    def __str__(self) -> str:
+        return (
+            f"Il campo 'provvedimento.flag_delibera' deve essere un valore "
+            f"numerico da '0' a '4'. Valore fornito: {self.value!r}"
+        )
+
+
+@dataclass
+class InvalidDateFormatError(OdonimoValidationError):
+    """Raised when a date field is not a valid dd/MM/yyyy calendar date.
+
+    Applies to provvedimento.data, aut_prefettura.data_pref and
+    data_valid_amm (OAS examples: "10/10/2023", "08/10/2024").
+    """
+
+    field_name: str
+    value: str
+
+    def __str__(self) -> str:
+        return (
+            f"Il campo '{self.field_name}' deve essere una data valida nel "
+            f"formato dd/MM/yyyy (es. '10/10/2023'). "
+            f"Valore fornito: {self.value!r}"
+        )
+
+
+@dataclass
+class DataValidAmmInFutureError(OdonimoValidationError):
+    """Raised when data_valid_amm is in the future (any operation).
+
+    Per OAS spec: "minore o uguale della data corrente per inserimento e
+    soppressione. Per aggiornamento anche >= della precedente" — the
+    'anche' is additive, so the <= today bound applies to R as well.
+    The R-only half (">= della precedente") requires the server-side
+    historical value and is NOT checked client-side.
+    """
+
+    operazione: str
+    value: str
+
+    def __str__(self) -> str:
+        return (
+            f"Il campo 'data_valid_amm' non puo' essere nel futuro per "
+            f"tipo_operazione='{self.operazione}' (deve essere minore o "
+            f"uguale alla data corrente). Valore fornito: {self.value!r}"
+        )
+
+
 __all__ = [
     "OdonimoValidationError",
     "TipoOperazioneError",
@@ -185,4 +242,7 @@ __all__ = [
     "OdonimoMaxLengthError",
     "FlagDeliberaMissingFieldsError",
     "PrefetturaMutexError",
+    "FlagDeliberaInvalidValueError",
+    "InvalidDateFormatError",
+    "DataValidAmmInFutureError",
 ]

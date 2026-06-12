@@ -1256,5 +1256,297 @@ class TestBuildResultSResponse:
         assert result.success is True
 
 
+class TestOdonimoClientSideValidation:
+    """New OAS constraints must fail at CLI level BEFORE any API call.
+
+    No SDK mock is set up on purpose: if the CLI tried to reach the
+    network the test would fail loudly instead of silently passing.
+    """
+
+    def test_update_flag_delibera_out_of_range_exits_1(
+        self, cli_runner: CliRunner
+    ) -> None:
+        from anncsu.cli import app
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "odonimo",
+                "update",
+                "--codcom",
+                "A062",
+                "--prognaz",
+                "2000449",
+                "--dug",
+                "VIA",
+                "--denom-delibera",
+                "DEI TIGLI",
+                "--provv-flag-delibera",
+                "7",
+                "--provv-data",
+                "10/10/2023",
+                "--provv-protocollo",
+                "1234567/abc",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "flag_delibera" in result.output
+
+    def test_insert_invalid_provv_data_format_exits_1(
+        self, cli_runner: CliRunner
+    ) -> None:
+        from anncsu.cli import app
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "odonimo",
+                "insert",
+                "--codcom",
+                "A062",
+                "--dug",
+                "VIA",
+                "--denom-delibera",
+                "DELLE ORCHIDEE",
+                "--provv-flag-delibera",
+                "1",
+                "--provv-data",
+                "2023-10-10",
+                "--provv-protocollo",
+                "1234567/abc",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "dd/MM/yyyy" in result.output
+
+    def test_insert_future_data_valid_amm_exits_1(self, cli_runner: CliRunner) -> None:
+        import datetime
+
+        from anncsu.cli import app
+
+        future = (datetime.date.today() + datetime.timedelta(days=30)).strftime(
+            "%d/%m/%Y"
+        )
+        result = cli_runner.invoke(
+            app,
+            [
+                "odonimo",
+                "insert",
+                "--codcom",
+                "A062",
+                "--dug",
+                "VIA",
+                "--denom-delibera",
+                "DELLE ORCHIDEE",
+                "--data-valid-amm",
+                future,
+            ],
+        )
+        assert result.exit_code == 1
+        assert "data_valid_amm" in result.output
+
+
+class TestOdonimoDataValidAmmHelpDocs:
+    """The data_valid_amm rules must be visible in ``--help``, not only
+    in the ANNCSU contract: ≤ today for I/S (client-side), ≥ previous
+    value for R (server-side)."""
+
+    def test_insert_help_documents_not_in_future_rule(
+        self, cli_runner: CliRunner
+    ) -> None:
+        from anncsu.cli import app
+
+        result = cli_runner.invoke(app, ["odonimo", "insert", "--help"])
+        assert result.exit_code == 0
+        assert "futuro" in result.output
+
+    def test_delete_help_documents_not_in_future_rule(
+        self, cli_runner: CliRunner
+    ) -> None:
+        from anncsu.cli import app
+
+        result = cli_runner.invoke(app, ["odonimo", "delete", "--help"])
+        assert result.exit_code == 0
+        assert "futuro" in result.output
+
+    def test_update_help_documents_server_side_previous_rule(
+        self, cli_runner: CliRunner
+    ) -> None:
+        from anncsu.cli import app
+
+        result = cli_runner.invoke(app, ["odonimo", "update", "--help"])
+        assert result.exit_code == 0
+        assert "precedente" in result.output
+        assert "server" in result.output.lower()
+        # Lettura A of the OAS: the not-in-future bound applies to R too
+        assert "futuro" in result.output
+
+
+class TestOdonimoServerErrorRendering:
+    """HTTP 400/404/500 ``RispostaErrore`` must be rendered with the
+    structured ``codice`` + ``messaggio`` fields (not the raw JSON body),
+    plus a contextual hint for the R + data_valid_amm server-side rule."""
+
+    @staticmethod
+    def _make_risposta_errore(
+        codice: str | None,
+        messaggio: str | None,
+        body: str | None = None,
+    ):
+        import json
+
+        import httpx
+
+        from anncsu.odonimi.errors.rispostaerrore import (
+            RispostaErrore,
+            RispostaErroreData,
+        )
+
+        payload = body or json.dumps(
+            {"id": "5144", "codice": codice, "messaggio": messaggio}
+        )
+        raw = httpx.Response(
+            400,
+            content=payload,
+            headers={"content-type": "application/problem+json"},
+            request=httpx.Request("POST", "http://test"),
+        )
+        data = RispostaErroreData(id="5144", codice=codice, messaggio=messaggio)
+        return RispostaErrore(data, raw)
+
+    def _invoke_with_server_error(
+        self,
+        cli_runner: CliRunner,
+        tmp_path: Path,
+        mock_private_key: Path,
+        error: Exception,
+        args: list[str],
+    ):
+        from anncsu.cli import app
+
+        with cli_runner.isolated_filesystem(temp_dir=tmp_path):
+            Path("private_key.pem").write_text(mock_private_key.read_text())
+            with patch(
+                "anncsu.cli.commands.odonimo.ClientAssertionSettings"
+            ) as mock_settings:
+                settings = MagicMock()
+                settings.has_modi_audit_context.return_value = False
+                mock_settings.return_value = settings
+                with patch(
+                    "anncsu.cli.commands.odonimo.PDNDAuthManager"
+                ) as mock_manager:
+                    manager = MagicMock()
+                    manager.get_access_token.return_value = "mock-token"
+                    mock_manager.return_value = manager
+                    with patch("anncsu.cli.commands.odonimo.AnncsuOdonimi") as mock_sdk:
+                        sdk = MagicMock()
+                        sdk.anncsu.gestione_anncsu_odonimi_pdnd.side_effect = error
+                        mock_sdk.return_value = sdk
+                        return cli_runner.invoke(app, args)
+
+    _UPDATE_ARGS = [
+        "odonimo",
+        "update",
+        "--codcom",
+        "A062",
+        "--prognaz",
+        "2000449",
+        "--dug",
+        "VIA",
+        "--denom-delibera",
+        "DEI TIGLI",
+    ]
+
+    def test_update_server_error_shows_codice_and_messaggio(
+        self, cli_runner: CliRunner, tmp_path: Path, mock_private_key: Path
+    ) -> None:
+        error = self._make_risposta_errore(
+            "23", "Errore di validazione: data non congruente"
+        )
+        result = self._invoke_with_server_error(
+            cli_runner, tmp_path, mock_private_key, error, self._UPDATE_ARGS
+        )
+        assert result.exit_code == 1
+        assert "23" in result.output
+        assert "Errore di validazione: data non congruente" in result.output
+        # The raw-JSON generic rendering must be gone for structured errors
+        assert "API call failed" not in result.output
+
+    def test_update_server_error_with_data_valid_amm_shows_hint(
+        self, cli_runner: CliRunner, tmp_path: Path, mock_private_key: Path
+    ) -> None:
+        error = self._make_risposta_errore(
+            "23", "Errore di validazione: data non congruente"
+        )
+        result = self._invoke_with_server_error(
+            cli_runner,
+            tmp_path,
+            mock_private_key,
+            error,
+            [*self._UPDATE_ARGS, "--data-valid-amm", "01/01/2020"],
+        )
+        assert result.exit_code == 1
+        assert "23" in result.output
+        # Contextual hint: the >= previous-value rule must be surfaced
+        assert "data_valid_amm" in result.output
+        assert "precedente" in result.output
+
+    def test_update_server_error_without_data_valid_amm_no_hint(
+        self, cli_runner: CliRunner, tmp_path: Path, mock_private_key: Path
+    ) -> None:
+        error = self._make_risposta_errore(
+            "23", "Errore di validazione: dug non valida"
+        )
+        result = self._invoke_with_server_error(
+            cli_runner, tmp_path, mock_private_key, error, self._UPDATE_ARGS
+        )
+        assert result.exit_code == 1
+        assert "23" in result.output
+        assert "precedente" not in result.output
+
+    def test_insert_server_error_no_hint(
+        self, cli_runner: CliRunner, tmp_path: Path, mock_private_key: Path
+    ) -> None:
+        """The hint is R-specific: insert errors must not show it."""
+        error = self._make_risposta_errore("235", "flag delibera non valorizzato")
+        result = self._invoke_with_server_error(
+            cli_runner,
+            tmp_path,
+            mock_private_key,
+            error,
+            [
+                "odonimo",
+                "insert",
+                "--codcom",
+                "A062",
+                "--dug",
+                "VIA",
+                "--denom-delibera",
+                "DELLE ORCHIDEE",
+                "--data-valid-amm",
+                "01/01/2020",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "235" in result.output
+        assert "precedente" not in result.output
+
+    def test_server_error_unstructured_falls_back_to_raw_body(
+        self, cli_runner: CliRunner, tmp_path: Path, mock_private_key: Path
+    ) -> None:
+        """RFC 7807 bodies (e.g. GovWay) have no codice/messaggio: the raw
+        body is the only useful info and must still be shown."""
+        error = self._make_risposta_errore(
+            None,
+            None,
+            body='{"type": "https://govway.org/problem", "detail": "Token scaduto"}',
+        )
+        result = self._invoke_with_server_error(
+            cli_runner, tmp_path, mock_private_key, error, self._UPDATE_ARGS
+        )
+        assert result.exit_code == 1
+        assert "Token scaduto" in result.output
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
